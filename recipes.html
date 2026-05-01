@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#fbf7f1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Recipes" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <title>Recipes</title>
+
+  <!-- Magazine-quality typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:           #fbf7f1;
+      --surface:      #ffffff;
+      --surface-2:    #f4ede1;
+      --ink:          #1a1410;
+      --ink-2:        #4d3f33;
+      --muted:        #8a7a6c;
+      --line:         #ece2d2;
+      --line-2:       #e0d3bd;
+      --accent:       #a13a13;   /* terracotta */
+      --accent-ink:   #ffffff;
+      --accent-soft:  #f6e4d8;
+      --sage:         #5b6f4e;
+      --sage-soft:    #e8ede0;
+      --amber:        #d97706;
+      --shadow:       0 1px 2px rgba(60,40,20,.04), 0 8px 24px rgba(60,40,20,.06);
+      --radius:       14px;
+      --radius-sm:    10px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      overscroll-behavior: none;
+      touch-action: pan-y;
+      min-height: 100vh;
+    }
+    body {
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    h1, h2, h3 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+    h1 { font-size: clamp(28px, 4vw, 44px); line-height: 1.1; }
+    h2 { font-size: clamp(22px, 2.6vw, 30px); line-height: 1.15; }
+    h3 { font-size: 18px; line-height: 1.25; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    button { font-family: inherit; font-size: inherit; }
+
+    .app { max-width: 1200px; margin: 0 auto; padding: 18px 18px 80px; }
+    @media (min-width: 768px) { .app { padding: 28px 32px 80px; } }
+
+    /* ---------- Top bar ---------- */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0 18px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      font-size: 26px;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      cursor: pointer;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .brand .dot { color: var(--accent); }
+    .topbar-spacer { flex: 1; }
+    .search {
+      position: relative;
+      flex: 1;
+      min-width: 180px;
+      max-width: 420px;
+    }
+    .search input {
+      width: 100%;
+      padding: 11px 14px 11px 38px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      font-size: 15px;
+      color: var(--ink);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .search-icon {
+      position: absolute;
+      left: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 11px 18px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 500;
+      transition: transform .05s, border-color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-ink);
+      border-color: var(--accent);
+    }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+    .btn-ghost:hover { background: var(--surface-2); }
+    .btn-danger { color: #b1361b; border-color: var(--line); background: var(--surface); }
+    .btn-danger:hover { background: #fdf0eb; }
+
+    /* ---------- Tag pills ---------- */
+    .tag-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 0 14px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .tag-row::-webkit-scrollbar { display: none; }
+    .tag {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--ink-2);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, color .15s;
+      user-select: none;
+    }
+    .tag.active {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+    .tag-static {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--sage-soft);
+      color: var(--sage);
+      font-size: 12px;
+      font-weight: 600;
+      margin: 0 6px 6px 0;
+    }
+
+    /* ---------- Recipe grid ---------- */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 22px;
+    }
+    @media (min-width: 600px)  { .grid { grid-template-columns: repeat(2, 1fr); gap: 24px; } }
+    @media (min-width: 1000px) { .grid { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform .12s ease, box-shadow .12s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(60,40,20,.05), 0 16px 36px rgba(60,40,20,.10); }
+    .card-image {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      background: var(--surface-2);
+      display: block;
+    }
+    .card-image-placeholder {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background:
+        radial-gradient(circle at 30% 30%, #f6e4d8, transparent 50%),
+        radial-gradient(circle at 70% 70%, #e8ede0, transparent 50%),
+        var(--surface-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Fraunces', serif;
+      font-size: 64px;
+      color: var(--accent);
+      opacity: .6;
+    }
+    .card-body { padding: 16px 18px 18px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .card-title { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+    .card-meta { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .card-meta-dot { width: 3px; height: 3px; background: var(--muted); border-radius: 50%; }
+    .card-tags { margin-top: auto; padding-top: 8px; }
+
+    /* ---------- Detail view ---------- */
+    .detail-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-2);
+      font-weight: 500;
+      cursor: pointer;
+      padding: 6px 0;
+      margin-bottom: 16px;
+      background: none;
+      border: none;
+    }
+    .detail-back:hover { color: var(--accent); }
+    .detail-hero {
+      width: 100%;
+      max-height: 380px;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      margin-bottom: 26px;
+    }
+    .detail-title {
+      margin-bottom: 8px;
+    }
+    .detail-source {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+    .detail-source a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line-2); }
+    .detail-meta-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      padding: 14px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 26px;
+    }
+    .meta-stat { display: flex; flex-direction: column; gap: 2px; }
+    .meta-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+    .meta-stat-value { font-family: 'Fraunces', serif; font-size: 18px; color: var(--ink); }
+
+    .detail-body {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 36px;
+    }
+    @media (min-width: 880px) {
+      .detail-body { grid-template-columns: minmax(240px, 320px) 1fr; gap: 56px; }
+    }
+
+    .section-label {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .ingredient-list { list-style: none; padding: 0; margin: 0; }
+    .ingredient-list li {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: opacity .15s;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+    .ingredient-list li:last-child { border-bottom: none; }
+    .ingredient-check {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border: 1.5px solid var(--line-2);
+      border-radius: 4px;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s, border-color .15s;
+    }
+    .ingredient-list li.checked { opacity: 0.4; text-decoration: line-through; }
+    .ingredient-list li.checked .ingredient-check {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .ingredient-list li.checked .ingredient-check::after {
+      content: '✓'; color: #fff; font-size: 12px; font-weight: 700;
+    }
+
+    .step-list { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+    .step-list li {
+      position: relative;
+      padding: 0 0 20px 48px;
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      counter-increment: step;
+    }
+    .step-list li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0; top: -2px;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-list li.section-heading {
+      padding-left: 0;
+      font-family: 'Fraunces', serif;
+      font-size: 18px;
+      color: var(--ink);
+      font-weight: 600;
+      margin: 8px 0 12px;
+    }
+    .step-list li.section-heading::before { display: none; }
+
+    /* ---------- Personal block (notes + rating) ---------- */
+    .personal {
+      margin-top: 40px;
+      padding: 24px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+    }
+    .stars { display: flex; gap: 4px; margin-bottom: 14px; }
+    .star {
+      cursor: pointer;
+      width: 28px; height: 28px;
+      color: var(--line-2);
+      transition: color .12s, transform .08s;
+    }
+    .star:hover { transform: scale(1.1); }
+    .star.filled { color: var(--amber); }
+    .notes-input {
+      width: 100%;
+      min-height: 80px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--bg);
+      resize: vertical;
+      outline: none;
+    }
+    .notes-input:focus { border-color: var(--accent); }
+
+    /* ---------- Add flow ---------- */
+    .add-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .url-input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--bg);
+      outline: none;
+      font-family: inherit;
+    }
+    .url-input:focus { border-color: var(--accent); }
+    .field { margin-bottom: 16px; }
+    .field-label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+    .field-input, .field-textarea {
+      width: 100%;
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      font-family: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      outline: none;
+    }
+    .field-textarea { min-height: 120px; resize: vertical; }
+    .field-input:focus, .field-textarea:focus { border-color: var(--accent); }
+
+    /* ---------- Empty state ---------- */
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-art {
+      font-family: 'Fraunces', serif;
+      font-size: 96px;
+      color: var(--accent);
+      opacity: 0.25;
+      margin-bottom: 16px;
+      line-height: 1;
+    }
+    .empty h2 { color: var(--ink); margin-bottom: 8px; }
+    .empty p { font-size: 15px; max-width: 420px; margin: 0 auto 20px; }
+
+    /* ---------- Passcode gate ---------- */
+    .gate {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .gate-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+    .gate-card .brand { font-size: 32px; margin-bottom: 6px; cursor: default; }
+    .gate-card p { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+    .gate-card input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      font-size: 16px;
+      text-align: center;
+      letter-spacing: 0.1em;
+      outline: none;
+      background: var(--bg);
+      margin-bottom: 12px;
+    }
+    .gate-card input:focus { border-color: var(--accent); }
+
+    /* ---------- Misc ---------- */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid var(--accent-soft);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-size: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.2);
+      z-index: 100;
+      max-width: 90vw;
+    }
+    .toast.error { background: #b1361b; }
+    .version {
+      position: fixed;
+      bottom: 8px;
+      right: 12px;
+      font-size: 10px;
+      color: var(--line-2);
+      letter-spacing: 0.05em;
+    }
+    .error-box {
+      background: #fdf0eb;
+      border: 1px solid #f4c4ad;
+      color: #8a2912;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .preview-banner {
+      background: var(--sage-soft);
+      color: var(--sage);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div class="version" id="version">v2026.05.02.1</div>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(e => console.warn('sw register failed', e));
+      });
+    }
+  </script>
+
+  <script type="text/babel" data-presets="env,react">
+  const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+  const APP_VERSION = 'v2026.05.02.1';
+  const PASSCODE_KEY = 'recipes-passcode';
+  const RECIPES_CACHE_KEY = 'recipes-cache-v1';
+  const CHECKED_KEY = 'recipes-checked-v1';
+
+  // ---------- API ----------
+  function apiRequest(path, opts = {}) {
+    const passcode = localStorage.getItem(PASSCODE_KEY) || '';
+    const headers = Object.assign({}, opts.headers || {}, {
+      'x-app-passcode': passcode,
+    });
+    if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+      opts = { ...opts, body: JSON.stringify(opts.body) };
+    }
+    return fetch(path, { ...opts, headers }).then(async r => {
+      if (r.status === 401) {
+        localStorage.removeItem(PASSCODE_KEY);
+        window.location.reload();
+        throw new Error('unauthorized');
+      }
+      const text = await r.text();
+      let data;
+      try { data = text ? JSON.parse(text) : null; } catch { data = { error: text }; }
+      if (!r.ok) throw new Error((data && data.error) || `HTTP ${r.status}`);
+      return data;
+    });
+  }
+  const api = {
+    list:    ()        => apiRequest('/api/recipes'),
+    get:     (id)      => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`),
+    save:    (id, r)   => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'PUT', body: r }),
+    remove:  (id)      => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    extract: (url)     => apiRequest(`/api/recipes?extract=1`, { method: 'POST', body: { url } }),
+  };
+
+  // ---------- Helpers ----------
+  function newId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function fmtTime(t) { return t || ''; }
+  function loadCache() {
+    try { return JSON.parse(localStorage.getItem(RECIPES_CACHE_KEY) || 'null'); } catch { return null; }
+  }
+  function saveCache(recipes) {
+    try { localStorage.setItem(RECIPES_CACHE_KEY, JSON.stringify(recipes)); } catch {}
+  }
+  function loadChecked(id) {
+    try { return JSON.parse(localStorage.getItem(CHECKED_KEY + ':' + id) || '[]'); } catch { return []; }
+  }
+  function saveChecked(id, arr) {
+    try { localStorage.setItem(CHECKED_KEY + ':' + id, JSON.stringify(arr)); } catch {}
+  }
+  function firstLetter(s) {
+    if (!s) return '🥘';
+    const c = s.trim().charAt(0).toUpperCase();
+    return /[A-Z]/.test(c) ? c : '🥘';
+  }
+
+  // ---------- Toast ----------
+  let toastTimeout;
+  function useToast() {
+    const [toast, setToast] = useState(null);
+    const show = useCallback((msg, type = 'info') => {
+      setToast({ msg, type });
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => setToast(null), 3500);
+    }, []);
+    const node = toast ? <div className={'toast ' + (toast.type === 'error' ? 'error' : '')}>{toast.msg}</div> : null;
+    return [show, node];
+  }
+
+  // ---------- Passcode gate ----------
+  function PasscodeGate({ onUnlock }) {
+    const [val, setVal] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState(null);
+    const submit = async (e) => {
+      e.preventDefault();
+      if (!val.trim()) return;
+      setBusy(true); setErr(null);
+      localStorage.setItem(PASSCODE_KEY, val.trim());
+      try {
+        await api.list();
+        onUnlock();
+      } catch (e) {
+        localStorage.removeItem(PASSCODE_KEY);
+        setErr('Wrong passcode.');
+      } finally {
+        setBusy(false);
+      }
+    };
+    return (
+      <div className="gate">
+        <form className="gate-card" onSubmit={submit}>
+          <div className="brand">Recipes<span className="dot">.</span></div>
+          <p>Enter the household passcode</p>
+          <input
+            type="password"
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            autoFocus
+            inputMode="text"
+            autoComplete="off"
+          />
+          {err && <div className="error-box" style={{textAlign:'left'}}>{err}</div>}
+          <button className="btn btn-primary" style={{width:'100%', justifyContent:'center'}} disabled={busy}>
+            {busy ? <><span className="spinner"/> Checking…</> : 'Unlock'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // ---------- Icons (inline SVG) ----------
+  const Icon = {
+    Search: () => <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>,
+    Plus:   () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>,
+    Back:   () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>,
+    Star:   ({filled}) => <svg className={'star ' + (filled?'filled':'')} viewBox="0 0 24 24" fill={filled?'currentColor':'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
+    Edit:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>,
+    Trash:  () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  };
+
+  // ---------- List ----------
+  function ListView({ recipes, onOpen, onAdd, query, setQuery, tag, setTag }) {
+    const allTags = useMemo(() => {
+      const set = new Set();
+      recipes.forEach(r => (r.tags || []).forEach(t => set.add(t)));
+      return Array.from(set).sort();
+    }, [recipes]);
+
+    const filtered = useMemo(() => {
+      const q = query.trim().toLowerCase();
+      return recipes.filter(r => {
+        if (tag && !(r.tags || []).includes(tag)) return false;
+        if (!q) return true;
+        const hay = [
+          r.title, r.description, r.author,
+          (r.ingredients||[]).join(' '),
+          (r.tags||[]).join(' '),
+          (r.notes||''),
+        ].join(' ').toLowerCase();
+        return hay.includes(q);
+      }).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    }, [recipes, query, tag]);
+
+    return (
+      <>
+        <div className="topbar">
+          <div className="brand" onClick={() => { setQuery(''); setTag(''); }}>Recipes<span className="dot">.</span></div>
+          <div className="topbar-spacer" />
+          <div className="search">
+            <Icon.Search />
+            <input
+              placeholder="Search title, ingredient, tag…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          </div>
+          <button className="btn btn-primary" onClick={onAdd}><Icon.Plus /> Add recipe</button>
+        </div>
+
+        {allTags.length > 0 && (
+          <div className="tag-row">
+            <div className={'tag' + (!tag ? ' active' : '')} onClick={() => setTag('')}>All</div>
+            {allTags.map(t => (
+              <div key={t} className={'tag' + (tag === t ? ' active' : '')} onClick={() => setTag(t === tag ? '' : t)}>{t}</div>
+            ))}
+          </div>
+        )}
+
+        {recipes.length === 0 ? (
+          <div className="empty">
+            <div className="empty-art">R.</div>
+            <h2>No recipes yet</h2>
+            <p>Paste a link to your first recipe — we'll pull the ingredients and steps and store everything in your Dropbox.</p>
+            <button className="btn btn-primary" onClick={onAdd}><Icon.Plus /> Add your first recipe</button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="empty">
+            <h2>Nothing matches</h2>
+            <p>Try a different search or clear the filter.</p>
+          </div>
+        ) : (
+          <div className="grid">
+            {filtered.map(r => <RecipeCard key={r.id} recipe={r} onClick={() => onOpen(r.id)} />)}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function RecipeCard({ recipe, onClick }) {
+    const meta = [];
+    if (recipe.totalTime) meta.push(recipe.totalTime);
+    else if (recipe.cookTime) meta.push(recipe.cookTime);
+    if (recipe.servings) meta.push(recipe.servings);
+    const [imgFailed, setImgFailed] = useState(false);
+    return (
+      <div className="card" onClick={onClick}>
+        {recipe.image && !imgFailed
+          ? <img className="card-image" src={recipe.image} alt="" loading="lazy" onError={() => setImgFailed(true)} />
+          : <div className="card-image-placeholder">{firstLetter(recipe.title)}</div>}
+        <div className="card-body">
+          <div className="card-title">{recipe.title || 'Untitled'}</div>
+          {meta.length > 0 && (
+            <div className="card-meta">
+              {meta.map((m, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <span className="card-meta-dot" />}
+                  <span>{m}</span>
+                </React.Fragment>
+              ))}
+              {recipe.rating > 0 && (<>
+                <span className="card-meta-dot" />
+                <span style={{color:'var(--amber)'}}>★ {recipe.rating}</span>
+              </>)}
+            </div>
+          )}
+          <div className="card-tags">
+            {(recipe.tags || []).slice(0, 3).map(t => <span key={t} className="tag-static">{t}</span>)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Detail ----------
+  function DetailView({ recipe, onBack, onEdit, onDelete, onSave }) {
+    const [checked, setChecked] = useState(() => loadChecked(recipe.id));
+    const [notes, setNotes] = useState(recipe.notes || '');
+    const [rating, setRating] = useState(recipe.rating || 0);
+    const [imgFailed, setImgFailed] = useState(false);
+    const personalDirty = useRef(false);
+
+    const toggleChecked = (i) => {
+      const next = checked.includes(i) ? checked.filter(x => x !== i) : [...checked, i];
+      setChecked(next);
+      saveChecked(recipe.id, next);
+    };
+
+    const persistPersonal = useCallback(async () => {
+      if (!personalDirty.current) return;
+      personalDirty.current = false;
+      await onSave({ ...recipe, notes, rating });
+    }, [recipe, notes, rating, onSave]);
+
+    useEffect(() => {
+      // autosave personal block on blur / unmount
+      return () => { persistPersonal(); };
+    }, [persistPersonal]);
+
+    return (
+      <>
+        <button className="detail-back" onClick={onBack}><Icon.Back /> Back to recipes</button>
+
+        {recipe.image && !imgFailed
+          ? <img className="detail-hero" src={recipe.image} alt="" onError={() => setImgFailed(true)} />
+          : null}
+
+        <h1 className="detail-title">{recipe.title || 'Untitled'}</h1>
+
+        {(recipe.author || recipe.sourceUrl) && (
+          <div className="detail-source">
+            {recipe.author && <>by {recipe.author} · </>}
+            {recipe.sourceUrl && <a href={recipe.sourceUrl} target="_blank" rel="noopener">view original</a>}
+          </div>
+        )}
+
+        {recipe.description && <p style={{color:'var(--ink-2)', fontSize:'17px', lineHeight:'1.6', marginBottom:'24px', maxWidth:'640px'}}>{recipe.description}</p>}
+
+        {(recipe.tags || []).length > 0 && (
+          <div style={{marginBottom: '20px'}}>
+            {(recipe.tags || []).map(t => <span key={t} className="tag-static">{t}</span>)}
+          </div>
+        )}
+
+        {(recipe.prepTime || recipe.cookTime || recipe.totalTime || recipe.servings) && (
+          <div className="detail-meta-row">
+            {recipe.prepTime  && <div className="meta-stat"><span className="meta-stat-label">Prep</span><span className="meta-stat-value">{fmtTime(recipe.prepTime)}</span></div>}
+            {recipe.cookTime  && <div className="meta-stat"><span className="meta-stat-label">Cook</span><span className="meta-stat-value">{fmtTime(recipe.cookTime)}</span></div>}
+            {recipe.totalTime && <div className="meta-stat"><span className="meta-stat-label">Total</span><span className="meta-stat-value">{fmtTime(recipe.totalTime)}</span></div>}
+            {recipe.servings  && <div className="meta-stat"><span className="meta-stat-label">Yield</span><span className="meta-stat-value">{recipe.servings}</span></div>}
+          </div>
+        )}
+
+        <div className="detail-body">
+          <div>
+            <h2 className="section-label">Ingredients</h2>
+            <ul className="ingredient-list">
+              {(recipe.ingredients || []).map((ing, i) => (
+                <li key={i} className={checked.includes(i) ? 'checked' : ''} onClick={() => toggleChecked(i)}>
+                  <span className="ingredient-check" />
+                  <span>{ing}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h2 className="section-label">Steps</h2>
+            <ol className="step-list">
+              {(recipe.instructions || []).map((step, i) => {
+                const isHeader = /^—.*—$/.test(step);
+                return <li key={i} className={isHeader ? 'section-heading' : ''}>{isHeader ? step.replace(/—/g, '').trim() : step}</li>;
+              })}
+            </ol>
+          </div>
+        </div>
+
+        <div className="personal">
+          <h3 style={{fontFamily:'Fraunces, serif', fontSize:'18px', fontWeight:600, marginBottom:'10px', color:'var(--ink)'}}>Your notes</h3>
+          <div className="stars">
+            {[1,2,3,4,5].map(n => (
+              <span key={n} onClick={() => { setRating(n === rating ? 0 : n); personalDirty.current = true; }}>
+                <Icon.Star filled={n <= rating} />
+              </span>
+            ))}
+          </div>
+          <textarea
+            className="notes-input"
+            placeholder="Halve the salt next time. Roasted at 425 instead of 400…"
+            value={notes}
+            onChange={e => { setNotes(e.target.value); personalDirty.current = true; }}
+            onBlur={persistPersonal}
+          />
+        </div>
+
+        <div style={{display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'30px', flexWrap:'wrap'}}>
+          <button className="btn btn-danger" onClick={onDelete}><Icon.Trash /> Delete</button>
+          <button className="btn" onClick={onEdit}><Icon.Edit /> Edit</button>
+        </div>
+      </>
+    );
+  }
+
+  // ---------- Add / Edit ----------
+  function AddView({ existing, onCancel, onSaved }) {
+    const editing = !!existing;
+    const [step, setStep] = useState(editing ? 'edit' : 'url');
+    const [url, setUrl] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState(null);
+    const [draft, setDraft] = useState(existing || null);
+
+    const doExtract = async (e) => {
+      e.preventDefault();
+      if (!url.trim()) return;
+      setBusy(true); setErr(null);
+      try {
+        const parsed = await api.extract(url.trim());
+        setDraft({
+          id: newId(),
+          ...parsed,
+          tags: [],
+          notes: '',
+          rating: 0,
+        });
+        setStep('edit');
+      } catch (e) {
+        setErr(e.message || 'Extraction failed.');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const updateDraft = (patch) => setDraft(d => ({...d, ...patch}));
+    const updateArr = (key, idx, val) => setDraft(d => {
+      const arr = [...(d[key] || [])];
+      if (val == null) arr.splice(idx, 1); else arr[idx] = val;
+      return { ...d, [key]: arr };
+    });
+    const addArrItem = (key) => setDraft(d => ({...d, [key]: [...(d[key] || []), '']}));
+
+    const doSave = async () => {
+      if (!draft.title.trim()) { setErr('Title is required.'); return; }
+      setBusy(true); setErr(null);
+      try {
+        const saved = await api.save(draft.id, draft);
+        onSaved(saved);
+      } catch (e) {
+        setErr(e.message || 'Save failed.');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    if (step === 'url') {
+      return (
+        <div>
+          <button className="detail-back" onClick={onCancel}><Icon.Back /> Cancel</button>
+          <div className="add-card">
+            <h1 style={{marginBottom:'8px'}}>Add a recipe</h1>
+            <p style={{color:'var(--muted)', marginBottom:'24px'}}>Paste a link from any recipe site. We'll pull the ingredients and steps.</p>
+            <form onSubmit={doExtract}>
+              <input
+                className="url-input"
+                type="url"
+                placeholder="https://cooking.nytimes.com/recipes/…"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                autoFocus
+                inputMode="url"
+              />
+              {err && <div className="error-box" style={{marginTop:'14px'}}>{err}</div>}
+              <div style={{display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'20px'}}>
+                <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={busy || !url.trim()}>
+                  {busy ? <><span className="spinner" /> Extracting…</> : 'Extract recipe'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // edit step
+    const tagsString = (draft.tags || []).join(', ');
+    return (
+      <div>
+        <button className="detail-back" onClick={onCancel}><Icon.Back /> {editing ? 'Cancel' : 'Back'}</button>
+        <div className="add-card">
+          <h1 style={{marginBottom:'18px'}}>{editing ? 'Edit recipe' : 'Review & save'}</h1>
+          {!editing && draft.extractedBy && (
+            <div className="preview-banner">
+              {draft.extractedBy === 'json-ld' ? '✓ Pulled from structured data' :
+               draft.extractedBy === 'json-ld-partial' ? '⚠︎ Partial structured data — review carefully' :
+               draft.extractedBy === 'claude' ? '✓ Extracted by Claude' :
+               '✓ Extracted'}
+            </div>
+          )}
+
+          <div className="field"><label className="field-label">Title</label>
+            <input className="field-input" value={draft.title} onChange={e => updateDraft({title: e.target.value})} />
+          </div>
+
+          <div className="field"><label className="field-label">Description (optional)</label>
+            <textarea className="field-textarea" style={{minHeight:'70px'}} value={draft.description || ''} onChange={e => updateDraft({description: e.target.value})} />
+          </div>
+
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px', marginBottom:'4px'}}>
+            <div className="field"><label className="field-label">Prep</label>
+              <input className="field-input" value={draft.prepTime || ''} onChange={e => updateDraft({prepTime: e.target.value})} />
+            </div>
+            <div className="field"><label className="field-label">Cook</label>
+              <input className="field-input" value={draft.cookTime || ''} onChange={e => updateDraft({cookTime: e.target.value})} />
+            </div>
+            <div className="field"><label className="field-label">Total</label>
+              <input className="field-input" value={draft.totalTime || ''} onChange={e => updateDraft({totalTime: e.target.value})} />
+            </div>
+            <div className="field"><label className="field-label">Servings</label>
+              <input className="field-input" value={draft.servings || ''} onChange={e => updateDraft({servings: e.target.value})} />
+            </div>
+          </div>
+
+          <div className="field"><label className="field-label">Tags (comma-separated)</label>
+            <input className="field-input" value={tagsString}
+              onChange={e => updateDraft({tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})}
+              placeholder="weeknight, vegetarian, soup"
+            />
+          </div>
+
+          <div className="field">
+            <label className="field-label">Ingredients</label>
+            {(draft.ingredients || []).map((ing, i) => (
+              <div key={i} style={{display:'flex', gap:'8px', marginBottom:'6px'}}>
+                <input className="field-input" value={ing} onChange={e => updateArr('ingredients', i, e.target.value)} />
+                <button type="button" className="btn btn-ghost" onClick={() => updateArr('ingredients', i, null)} title="Remove">×</button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-ghost" onClick={() => addArrItem('ingredients')} style={{marginTop:'4px'}}>+ Add ingredient</button>
+          </div>
+
+          <div className="field">
+            <label className="field-label">Instructions (one step per line)</label>
+            {(draft.instructions || []).map((step, i) => (
+              <div key={i} style={{display:'flex', gap:'8px', marginBottom:'6px'}}>
+                <textarea className="field-textarea" style={{minHeight:'52px'}} value={step} onChange={e => updateArr('instructions', i, e.target.value)} />
+                <button type="button" className="btn btn-ghost" onClick={() => updateArr('instructions', i, null)} title="Remove">×</button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-ghost" onClick={() => addArrItem('instructions')} style={{marginTop:'4px'}}>+ Add step</button>
+          </div>
+
+          <div className="field"><label className="field-label">Image URL</label>
+            <input className="field-input" value={draft.image || ''} onChange={e => updateDraft({image: e.target.value})} />
+          </div>
+
+          <div className="field"><label className="field-label">Source URL</label>
+            <input className="field-input" value={draft.sourceUrl || ''} onChange={e => updateDraft({sourceUrl: e.target.value})} />
+          </div>
+
+          {err && <div className="error-box">{err}</div>}
+
+          <div style={{display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'20px'}}>
+            <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={doSave} disabled={busy}>
+              {busy ? <><span className="spinner" /> Saving…</> : 'Save recipe'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- App shell ----------
+  function App() {
+    const [unlocked, setUnlocked] = useState(!!localStorage.getItem(PASSCODE_KEY));
+    const [recipes, setRecipes] = useState(() => loadCache() || []);
+    const [view, setView] = useState({ name: 'list' });
+    const [query, setQuery] = useState('');
+    const [tag, setTag] = useState('');
+    const [loadingList, setLoadingList] = useState(false);
+    const [showToast, toastNode] = useToast();
+
+    const refresh = useCallback(async () => {
+      setLoadingList(true);
+      try {
+        const { recipes } = await api.list();
+        setRecipes(recipes);
+        saveCache(recipes);
+      } catch (e) {
+        if (e.message !== 'unauthorized') showToast('Could not load recipes: ' + e.message, 'error');
+      } finally {
+        setLoadingList(false);
+      }
+    }, [showToast]);
+
+    useEffect(() => { if (unlocked) refresh(); }, [unlocked, refresh]);
+
+    const openRecipe = (id) => setView({ name: 'detail', id });
+    const goAdd      = () => setView({ name: 'add' });
+    const goEdit     = (id) => setView({ name: 'edit', id });
+    const goList     = () => setView({ name: 'list' });
+
+    const saveRecipe = async (recipe) => {
+      const saved = await api.save(recipe.id, recipe);
+      setRecipes(rs => {
+        const exists = rs.some(r => r.id === saved.id);
+        const next = exists ? rs.map(r => r.id === saved.id ? saved : r) : [saved, ...rs];
+        saveCache(next);
+        return next;
+      });
+      return saved;
+    };
+
+    const deleteRecipe = async (id) => {
+      if (!confirm('Delete this recipe? It will also be removed from Dropbox.')) return;
+      try {
+        await api.remove(id);
+        setRecipes(rs => {
+          const next = rs.filter(r => r.id !== id);
+          saveCache(next);
+          return next;
+        });
+        showToast('Recipe deleted');
+        goList();
+      } catch (e) {
+        showToast('Delete failed: ' + e.message, 'error');
+      }
+    };
+
+    if (!unlocked) return <PasscodeGate onUnlock={() => setUnlocked(true)} />;
+
+    let body;
+    if (view.name === 'list') {
+      body = <ListView recipes={recipes} onOpen={openRecipe} onAdd={goAdd}
+                       query={query} setQuery={setQuery} tag={tag} setTag={setTag} />;
+    } else if (view.name === 'add') {
+      body = <AddView onCancel={goList} onSaved={(r) => { setRecipes(rs => { const next = [r, ...rs.filter(x => x.id !== r.id)]; saveCache(next); return next; }); showToast('Saved to Dropbox'); openRecipe(r.id); }} />;
+    } else if (view.name === 'edit') {
+      const r = recipes.find(x => x.id === view.id);
+      if (!r) { goList(); return null; }
+      body = <AddView existing={r} onCancel={() => openRecipe(r.id)} onSaved={(saved) => { setRecipes(rs => { const next = rs.map(x => x.id === saved.id ? saved : x); saveCache(next); return next; }); showToast('Updated'); openRecipe(saved.id); }} />;
+    } else if (view.name === 'detail') {
+      const r = recipes.find(x => x.id === view.id);
+      if (!r) { goList(); return null; }
+      body = <DetailView
+        recipe={r}
+        onBack={goList}
+        onEdit={() => goEdit(r.id)}
+        onDelete={() => deleteRecipe(r.id)}
+        onSave={async (next) => {
+          try {
+            const saved = await api.save(next.id, next);
+            setRecipes(rs => { const out = rs.map(x => x.id === saved.id ? saved : x); saveCache(out); return out; });
+          } catch (e) {
+            showToast('Could not save notes: ' + e.message, 'error');
+          }
+        }}
+      />;
+    }
+
+    return (
+      <div className="app">
+        {body}
+        {toastNode}
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

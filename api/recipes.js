@@ -1,11 +1,11 @@
 // api/recipes.js
 //
-// Single Vercel serverless function that:
-//   1. Gates every request behind a shared APP_PASSCODE header
-//   2. Reads/writes a per-recipe JSON store inside the Dropbox "App folder"
-//      (Apps/Recipes/) using a long-lived refresh token owned by Bea
-//   3. Extracts new recipes from a URL — JSON-LD Recipe schema first
-//      (laser-focused, free), Claude API fallback when the page has none
+// Single Vercel serverless function:
+//   1. Gates every request behind a shared APP_PASSCODE header.
+//   2. Reads/writes a per-recipe JSON store in the Dropbox "App folder"
+//      (Apps/Recipes/) using a long-lived refresh token owned by Bea.
+//   3. Extracts new recipes from a URL — JSON-LD Recipe schema first,
+//      Claude API fallback when the page has none.
 //
 // Routes (all under /api/recipes):
 //   GET    /api/recipes              → list all recipes (full bodies)
@@ -13,15 +13,18 @@
 //   POST   /api/recipes?extract=1    → body {url} → returns parsed recipe (no save)
 //   PUT    /api/recipes?id=xyz       → body recipe → upsert
 //   DELETE /api/recipes?id=xyz       → delete
+//
+// We deliberately do NOT use the Dropbox SDK. Its v10 download path calls
+// `res.buffer()` (a node-fetch API) which doesn't exist in Vercel's native
+// fetch runtime. Calling Dropbox's HTTP API directly with `fetch` sidesteps
+// the issue entirely and removes a dependency.
 
-import { Dropbox } from 'dropbox';
-
-const PASSCODE        = process.env.APP_PASSCODE;
-const APP_KEY         = process.env.DROPBOX_APP_KEY;
-const APP_SECRET      = process.env.DROPBOX_APP_SECRET;
-const REFRESH_TOKEN   = process.env.DROPBOX_REFRESH_TOKEN;
-const ANTHROPIC_KEY   = process.env.ANTHROPIC_API_KEY;
-const CLAUDE_MODEL    = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
+const PASSCODE      = process.env.APP_PASSCODE;
+const APP_KEY       = process.env.DROPBOX_APP_KEY;
+const APP_SECRET    = process.env.DROPBOX_APP_SECRET;
+const REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const CLAUDE_MODEL  = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
 
 // ---------------------------------------------------------------------------
 // Handler
@@ -30,7 +33,6 @@ const CLAUDE_MODEL    = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  // Passcode gate — without this, the Vercel URL is world-readable.
   const pass = req.headers['x-app-passcode'];
   if (!PASSCODE || pass !== PASSCODE) {
     return json(res, 401, { error: 'unauthorized' });
@@ -39,13 +41,6 @@ export default async function handler(req, res) {
   if (!APP_KEY || !APP_SECRET || !REFRESH_TOKEN) {
     return json(res, 500, { error: 'server missing Dropbox credentials' });
   }
-
-  const dbx = new Dropbox({
-    clientId: APP_KEY,
-    clientSecret: APP_SECRET,
-    refreshToken: REFRESH_TOKEN,
-    fetch,
-  });
 
   const { method, query } = req;
   const id = (query.id || '').toString().trim();
@@ -62,43 +57,32 @@ export default async function handler(req, res) {
 
     // -------- list --------
     if (method === 'GET' && !id) {
-      const list = await dbx.filesListFolder({ path: '' });
-      const allEntries = list.result.entries || [];
-      console.log('[list] raw entry count:', allEntries.length);
-      console.log('[list] first 3 entries:', JSON.stringify(allEntries.slice(0, 3)));
-      // Be permissive on the filter — just look for .json files. The previous
-      // filter required `.tag === 'file'` and `name.startsWith('recipe-')`,
-      // but the Dropbox SDK can return slightly different shapes; this catches
-      // anything that looks like a recipe JSON regardless.
-      const files = allEntries.filter(e => {
-        const isFile = e['.tag'] === 'file' || e.tag === 'file' || (!!e.name && !e['.tag'] && !e.tag);
-        const isJson = typeof e.name === 'string' && e.name.toLowerCase().endsWith('.json');
-        return isFile && isJson;
-      });
-      console.log('[list] filtered file count:', files.length);
+      const list = await dbxApi('files/list_folder', { path: '' });
+      const entries = list.entries || [];
+      const files = entries.filter(e =>
+        (e['.tag'] === 'file' || e.tag === 'file') &&
+        typeof e.name === 'string' &&
+        e.name.toLowerCase().endsWith('.json')
+      );
       const recipes = await Promise.all(
         files.map(async f => {
           try {
             const path = f.path_lower || f.path_display || ('/' + f.name);
-            const dl = await dbx.filesDownload({ path });
-            const text = await blobToText(dl.result);
+            const text = await dbxDownload(path);
             return JSON.parse(text);
           } catch (err) {
-            console.error('[list] download/parse failed for', f.name, ':', err && err.message);
+            console.error('[list] failed for', f.name, ':', err && err.message);
             return null;
           }
         })
       );
-      const final = recipes.filter(Boolean);
-      console.log('[list] returning recipe count:', final.length);
-      return json(res, 200, { recipes: final });
+      return json(res, 200, { recipes: recipes.filter(Boolean) });
     }
 
     // -------- read one --------
     if (method === 'GET' && id) {
       if (!isSafeId(id)) return json(res, 400, { error: 'bad id' });
-      const dl = await dbx.filesDownload({ path: `/recipe-${id}.json` });
-      const text = await blobToText(dl.result);
+      const text = await dbxDownload(`/recipe-${id}.json`);
       return json(res, 200, JSON.parse(text));
     }
 
@@ -116,12 +100,7 @@ export default async function handler(req, res) {
         updatedAt: now,
         createdAt: body.createdAt || now,
       };
-      await dbx.filesUpload({
-        path: `/recipe-${id}.json`,
-        contents: JSON.stringify(recipe, null, 2),
-        mode: { '.tag': 'overwrite' },
-        mute: true,
-      });
+      await dbxUpload(`/recipe-${id}.json`, JSON.stringify(recipe, null, 2));
       return json(res, 200, recipe);
     }
 
@@ -129,10 +108,10 @@ export default async function handler(req, res) {
     if (method === 'DELETE' && id) {
       if (!isSafeId(id)) return json(res, 400, { error: 'bad id' });
       try {
-        await dbx.filesDeleteV2({ path: `/recipe-${id}.json` });
+        await dbxApi('files/delete_v2', { path: `/recipe-${id}.json` });
       } catch (e) {
-        // tolerate "not found" so deletes are idempotent
-        if (!String(e).includes('not_found')) throw e;
+        // tolerate "not_found" so deletes are idempotent
+        if (!String(e && e.message).includes('not_found')) throw e;
       }
       return json(res, 200, { ok: true, id });
     }
@@ -143,6 +122,100 @@ export default async function handler(req, res) {
     const msg = e && (e.message || e.error_summary) ? (e.message || e.error_summary) : 'internal error';
     return json(res, 500, { error: String(msg).slice(0, 500) });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Dropbox HTTP client (no SDK)
+// ---------------------------------------------------------------------------
+
+// Cache the access token across warm invocations of the same container.
+// Tokens last 4h; we refresh on demand if expired or missing.
+let _accessToken = null;
+let _accessTokenExpiresAt = 0;
+
+async function getAccessToken() {
+  const now = Date.now();
+  if (_accessToken && now < _accessTokenExpiresAt - 60_000) {
+    return _accessToken;
+  }
+  const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: REFRESH_TOKEN,
+      client_id: APP_KEY,
+      client_secret: APP_SECRET,
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Dropbox auth failed (${res.status}): ${t.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  _accessToken = data.access_token;
+  _accessTokenExpiresAt = now + (data.expires_in || 14400) * 1000;
+  return _accessToken;
+}
+
+// Standard Dropbox JSON RPC endpoint (api.dropboxapi.com).
+async function dbxApi(endpoint, args) {
+  const token = await getAccessToken();
+  const res = await fetch(`https://api.dropboxapi.com/2/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Dropbox ${endpoint} failed (${res.status}): ${t.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+// Download endpoint lives on content.dropboxapi.com and uses the Dropbox-API-Arg header.
+async function dbxDownload(path) {
+  const token = await getAccessToken();
+  const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Dropbox-API-Arg': JSON.stringify({ path }),
+    },
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Dropbox download failed (${res.status}): ${t.slice(0, 200)}`);
+  }
+  return res.text();
+}
+
+// Upload endpoint also on content.dropboxapi.com.
+async function dbxUpload(path, contents) {
+  const token = await getAccessToken();
+  const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': JSON.stringify({
+        path,
+        mode: 'overwrite',
+        mute: true,
+        autorename: false,
+        strict_conflict: false,
+      }),
+    },
+    body: contents,
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Dropbox upload failed (${res.status}): ${t.slice(0, 200)}`);
+  }
+  return res.json();
 }
 
 // ---------------------------------------------------------------------------
@@ -160,30 +233,14 @@ function isSafeId(id) {
 }
 
 async function readJsonBody(req) {
-  // Vercel parses application/json automatically, but be defensive.
   if (req.body && typeof req.body === 'object') return req.body;
   if (typeof req.body === 'string') {
     try { return JSON.parse(req.body); } catch { return null; }
   }
-  // stream fallback
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   if (!chunks.length) return null;
   try { return JSON.parse(Buffer.concat(chunks).toString('utf-8')); } catch { return null; }
-}
-
-async function blobToText(result) {
-  // The Dropbox SDK puts the file payload on different fields depending on
-  // the runtime. On Node it's `fileBinary` (Buffer); on browsers it's
-  // `fileBlob`. Handle both so this code stays portable.
-  const bin = result.fileBinary;
-  if (bin) {
-    if (Buffer.isBuffer(bin)) return bin.toString('utf-8');
-    if (bin instanceof Uint8Array) return Buffer.from(bin).toString('utf-8');
-  }
-  const blob = result.fileBlob;
-  if (blob && typeof blob.text === 'function') return await blob.text();
-  return String(bin || blob || '');
 }
 
 // ---------------------------------------------------------------------------
@@ -196,7 +253,6 @@ async function extractRecipe(url) {
     const r = await fetch(url, {
       redirect: 'follow',
       headers: {
-        // Some sites block obvious bots. Pretend to be a normal browser.
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -208,18 +264,13 @@ async function extractRecipe(url) {
     throw new Error(`could not fetch URL: ${e.message}`);
   }
 
-  // 1. JSON-LD pass — fast, accurate, free
   const fromLd = extractFromJsonLd(html);
   if (fromLd && fromLd.ingredients.length && fromLd.instructions.length) {
     return { ...fromLd, sourceUrl: url, extractedBy: 'json-ld' };
   }
 
-  // 2. Claude fallback — only if the site doesn't ship structured data
   if (!ANTHROPIC_KEY) {
-    if (fromLd) {
-      // partial JSON-LD is still useful — return what we have rather than failing
-      return { ...fromLd, sourceUrl: url, extractedBy: 'json-ld-partial' };
-    }
+    if (fromLd) return { ...fromLd, sourceUrl: url, extractedBy: 'json-ld-partial' };
     throw new Error('This page has no machine-readable recipe data. Add an ANTHROPIC_API_KEY to the Vercel project to enable Claude fallback extraction.');
   }
   const fromClaude = await extractWithClaude(html, url);
@@ -338,7 +389,6 @@ function cleanString(s) {
     .trim();
 }
 
-// ISO 8601 duration "PT1H30M" → "1h 30m"
 function formatDuration(d) {
   if (!d || typeof d !== 'string') return '';
   const m = d.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i);
@@ -351,7 +401,7 @@ function formatDuration(d) {
 }
 
 // ---------------------------------------------------------------------------
-// Claude fallback — laser-targeted on ingredients, measurements, steps
+// Claude fallback
 // ---------------------------------------------------------------------------
 
 async function extractWithClaude(html, url) {
@@ -363,20 +413,20 @@ Respond with ONLY a JSON object (no prose, no markdown fences) in exactly this s
 {
   "title": string,
   "description": string,
-  "ingredients": [string, ...],   // each string is ONE ingredient line, including the measurement (e.g. "2 tbsp olive oil")
-  "instructions": [string, ...],  // each string is ONE discrete step, in order
-  "prepTime": string,             // e.g. "15m", "1h 30m", or "" if not given
+  "ingredients": [string, ...],
+  "instructions": [string, ...],
+  "prepTime": string,
   "cookTime": string,
   "totalTime": string,
-  "servings": string,             // e.g. "4 servings", "makes 12", or ""
-  "image": string,                // best hero image URL, or ""
-  "author": string                // recipe author / site name, or ""
+  "servings": string,
+  "image": string,
+  "author": string
 }
 
 Rules:
 - Strip the writer's life story, ads, and SEO filler. Capture only the recipe itself.
 - Keep ingredient measurements EXACTLY as written.
-- Each step in "instructions" must be a single coherent action (don't merge multiple steps).
+- Each step in "instructions" must be a single coherent action.
 - If a field isn't present on the page, use "" or [].
 
 URL: ${url}
@@ -406,7 +456,6 @@ ${text}`;
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Claude returned no JSON');
   const parsed = JSON.parse(jsonMatch[0]);
-  // Normalize shape — guarantee arrays/strings exist
   return {
     title:        cleanString(parsed.title),
     description:  cleanString(parsed.description),

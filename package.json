@@ -6,7 +6,5 @@
   "engines": {
     "node": ">=18"
   },
-  "dependencies": {
-    "dropbox": "^10.34.0"
-  }
+  "dependencies": {}
 }

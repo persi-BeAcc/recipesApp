@@ -63,21 +63,35 @@ export default async function handler(req, res) {
     // -------- list --------
     if (method === 'GET' && !id) {
       const list = await dbx.filesListFolder({ path: '' });
-      const files = list.result.entries.filter(
-        e => e['.tag'] === 'file' && e.name.endsWith('.json') && e.name.startsWith('recipe-')
-      );
+      const allEntries = list.result.entries || [];
+      console.log('[list] raw entry count:', allEntries.length);
+      console.log('[list] first 3 entries:', JSON.stringify(allEntries.slice(0, 3)));
+      // Be permissive on the filter — just look for .json files. The previous
+      // filter required `.tag === 'file'` and `name.startsWith('recipe-')`,
+      // but the Dropbox SDK can return slightly different shapes; this catches
+      // anything that looks like a recipe JSON regardless.
+      const files = allEntries.filter(e => {
+        const isFile = e['.tag'] === 'file' || e.tag === 'file' || (!!e.name && !e['.tag'] && !e.tag);
+        const isJson = typeof e.name === 'string' && e.name.toLowerCase().endsWith('.json');
+        return isFile && isJson;
+      });
+      console.log('[list] filtered file count:', files.length);
       const recipes = await Promise.all(
         files.map(async f => {
           try {
-            const dl = await dbx.filesDownload({ path: f.path_lower });
+            const path = f.path_lower || f.path_display || ('/' + f.name);
+            const dl = await dbx.filesDownload({ path });
             const text = await blobToText(dl.result);
             return JSON.parse(text);
-          } catch {
+          } catch (err) {
+            console.error('[list] download/parse failed for', f.name, ':', err && err.message);
             return null;
           }
         })
       );
-      return json(res, 200, { recipes: recipes.filter(Boolean) });
+      const final = recipes.filter(Boolean);
+      console.log('[list] returning recipe count:', final.length);
+      return json(res, 200, { recipes: final });
     }
 
     // -------- read one --------

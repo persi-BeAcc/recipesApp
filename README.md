@@ -15,12 +15,20 @@ A PWA for managing recipes, with cross-device sync via a shared Dropbox account.
 ## Repo layout
 
 ```
-recipes.html       – PWA entry, single file (UI is a placeholder; will reskin once Bea's design is in)
-api/recipes.js     – Vercel serverless function: passcode gate, Dropbox CRUD, URL extractor
-sw.js              – service worker
-manifest.json      – PWA manifest
-vercel.json        – routes + headers
-package.json       – dependencies (dropbox SDK)
+recipes.html              – PWA entry, single file (UI placeholder; reskin pending Bea's design)
+api/
+  recipes.js              – CRUD + sync URL extractor
+  extract-video.js        – kicks off async video extraction job
+  job-status.js           – polls job state
+  inngest.js              – Inngest webhook + worker function
+lib/
+  dropbox.js              – shared Dropbox HTTP client (no SDK — native fetch)
+  recipe-extract.js       – JSON-LD parser + Claude consolidation prompts
+  video-pipeline.js       – RapidAPI / Whisper / Gemini / caption-link logic
+sw.js                     – service worker
+manifest.json             – PWA manifest
+vercel.json               – routes + headers
+package.json              – inngest dep
 ```
 
 ## Conventions inherited from the invoices app
@@ -103,8 +111,14 @@ The refresh token lets the serverless function renew its own access tokens forev
    | `DROPBOX_APP_KEY`        | from step 1                                        |
    | `DROPBOX_APP_SECRET`     | from step 1                                        |
    | `DROPBOX_REFRESH_TOKEN`  | from step 2                                        |
-   | `ANTHROPIC_API_KEY`      | from <https://console.anthropic.com> (optional)    |
+   | `ANTHROPIC_API_KEY`      | from <https://console.anthropic.com>               |
    | `CLAUDE_MODEL`           | optional override; default `claude-haiku-4-5-20251001` |
+   | `INNGEST_EVENT_KEY`      | from inngest.com (for video pipeline)              |
+   | `INNGEST_SIGNING_KEY`    | from inngest.com (for video pipeline)              |
+   | `OPENAI_API_KEY`         | from platform.openai.com (Whisper)                 |
+   | `RAPIDAPI_KEY`           | from rapidapi.com (Instagram/TikTok downloader)    |
+   | `RAPIDAPI_HOST`          | from your chosen RapidAPI provider's page          |
+   | `GEMINI_API_KEY`         | optional, from aistudio.google.com (full-video analysis) |
 
 4. Deploy. Once live, open the URL on your iPhone/iPad and add to Home Screen.
 

@@ -541,7 +541,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <div class="version" id="version">v2026.05.02.1</div>
+  <div class="version" id="version">v2026.05.02.2</div>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -558,7 +558,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION = 'v2026.05.02.1';
+  const APP_VERSION = 'v2026.05.02.2';
   const PASSCODE_KEY = 'recipes-passcode';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY = 'recipes-checked-v1';
@@ -587,12 +587,28 @@
     });
   }
   const api = {
-    list:    ()        => apiRequest('/api/recipes'),
-    get:     (id)      => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`),
-    save:    (id, r)   => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'PUT', body: r }),
-    remove:  (id)      => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    extract: (url)     => apiRequest(`/api/recipes?extract=1`, { method: 'POST', body: { url } }),
+    list:           ()        => apiRequest('/api/recipes'),
+    get:            (id)      => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`),
+    save:           (id, r)   => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'PUT', body: r }),
+    remove:         (id)      => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    extract:        (url)     => apiRequest(`/api/recipes?extract=1`, { method: 'POST', body: { url } }),
+    extractVideo:   (url, analysis) => apiRequest('/api/extract-video', { method: 'POST', body: { url, analysis } }),
+    jobStatus:      (jobId)   => apiRequest(`/api/job-status?id=${encodeURIComponent(jobId)}`),
   };
+
+  // ---------- URL classification ----------
+  function detectPlatform(url) {
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+      if (host === 'instagram.com' || host === 'instagr.am' || host.endsWith('.instagram.com')) return 'instagram';
+      if (host === 'tiktok.com' || host === 'vm.tiktok.com' || host.endsWith('.tiktok.com')) return 'tiktok';
+    } catch {}
+    return 'web';
+  }
+  function isVideoUrl(url) {
+    const p = detectPlatform(url);
+    return p === 'instagram' || p === 'tiktok';
+  }
 
   // ---------- Helpers ----------
   function newId() {
@@ -786,6 +802,78 @@
     );
   }
 
+  // ---------- Social embed (Instagram + TikTok) ----------
+  // Loads the platform's embed.js once per session, then renders their
+  // standard blockquote which the script upgrades into a player.
+  function SocialEmbed({ url, platform, fallbackImage }) {
+    const ref = useRef(null);
+
+    useEffect(() => {
+      const scriptId = platform === 'instagram' ? 'ig-embed-js' : 'tt-embed-js';
+      const scriptSrc = platform === 'instagram'
+        ? 'https://www.instagram.com/embed.js'
+        : 'https://www.tiktok.com/embed.js';
+
+      const ensureScript = () => new Promise((resolve) => {
+        if (document.getElementById(scriptId)) return resolve();
+        const s = document.createElement('script');
+        s.id = scriptId;
+        s.async = true;
+        s.src = scriptSrc;
+        s.onload = resolve;
+        document.body.appendChild(s);
+      });
+
+      ensureScript().then(() => {
+        // Tell the embed lib to (re)scan for our blockquote.
+        if (platform === 'instagram' && window.instgrm && window.instgrm.Embeds) {
+          window.instgrm.Embeds.process();
+        }
+        // TikTok auto-scans on script load, but reload-safe: re-add the script
+        // if the embed didn't take. Their lib rescans on DOM mutations.
+      });
+    }, [url, platform]);
+
+    if (platform === 'instagram') {
+      return (
+        <div className="social-embed" ref={ref} style={{margin:'0 auto 26px', maxWidth:'540px'}}>
+          <blockquote
+            className="instagram-media"
+            data-instgrm-permalink={url}
+            data-instgrm-version="14"
+            style={{
+              background:'var(--surface)', border:0, borderRadius:'var(--radius)',
+              boxShadow: 'var(--shadow)', margin:'0 auto', maxWidth:'540px', minWidth:'280px', padding:0,
+            }}
+          >
+            <a href={url} target="_blank" rel="noopener" style={{display:'block', padding:'40px', textAlign:'center', color:'var(--muted)'}}>
+              {fallbackImage
+                ? <img src={fallbackImage} alt="" style={{width:'100%', borderRadius:'var(--radius)'}} />
+                : <span>View on Instagram</span>}
+            </a>
+          </blockquote>
+        </div>
+      );
+    }
+
+    // TikTok
+    const videoIdMatch = (url || '').match(/\/video\/(\d+)/);
+    const videoId = videoIdMatch ? videoIdMatch[1] : '';
+    return (
+      <div className="social-embed" ref={ref} style={{margin:'0 auto 26px', maxWidth:'540px'}}>
+        <blockquote className="tiktok-embed" cite={url} data-video-id={videoId} style={{maxWidth:'540px', minWidth:'280px'}}>
+          <section>
+            <a href={url} target="_blank" rel="noopener" style={{display:'block', padding:'40px', textAlign:'center', color:'var(--muted)'}}>
+              {fallbackImage
+                ? <img src={fallbackImage} alt="" style={{width:'100%', borderRadius:'var(--radius)'}} />
+                : <span>View on TikTok</span>}
+            </a>
+          </section>
+        </blockquote>
+      </div>
+    );
+  }
+
   // ---------- Detail ----------
   function DetailView({ recipe, onBack, onEdit, onDelete, onSave }) {
     const [checked, setChecked] = useState(() => loadChecked(recipe.id));
@@ -811,13 +899,17 @@
       return () => { persistPersonal(); };
     }, [persistPersonal]);
 
+    const sourcePlatform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
+
     return (
       <>
         <button className="detail-back" onClick={onBack}><Icon.Back /> Back to recipes</button>
 
-        {recipe.image && !imgFailed
-          ? <img className="detail-hero" src={recipe.image} alt="" onError={() => setImgFailed(true)} />
-          : null}
+        {sourcePlatform === 'instagram' || sourcePlatform === 'tiktok'
+          ? <SocialEmbed url={recipe.sourceUrl} platform={sourcePlatform} fallbackImage={recipe.image} />
+          : (recipe.image && !imgFailed
+              ? <img className="detail-hero" src={recipe.image} alt="" onError={() => setImgFailed(true)} />
+              : null)}
 
         <h1 className="detail-title">{recipe.title || 'Untitled'}</h1>
 
@@ -895,32 +987,83 @@
   }
 
   // ---------- Add / Edit ----------
-  function AddView({ existing, onCancel, onSaved }) {
+  function AddView({ existing, onCancel, onSaved, onVideoExtracted }) {
     const editing = !!existing;
     const [step, setStep] = useState(editing ? 'edit' : 'url');
     const [url, setUrl] = useState('');
+    const [analysis, setAnalysis] = useState('auto');
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState(null);
     const [draft, setDraft] = useState(existing || null);
+    const [jobId, setJobId] = useState(null);
+    const [progress, setProgress] = useState('');
+    const pollRef = useRef(null);
+
+    const trimmedUrl = url.trim();
+    const platform = trimmedUrl ? detectPlatform(trimmedUrl) : 'web';
+    const showAnalysis = isVideoUrl(trimmedUrl);
+
+    // Polling effect: when we have a jobId, check status every 2s.
+    useEffect(() => {
+      if (!jobId) return;
+      let cancelled = false;
+      const tick = async () => {
+        try {
+          const job = await api.jobStatus(jobId);
+          if (cancelled) return;
+          setProgress(job.progress || job.status);
+          if (job.status === 'done' && job.recipeId) {
+            cancelled = true;
+            onVideoExtracted(job.recipeId);
+          } else if (job.status === 'error') {
+            cancelled = true;
+            setErr(job.error || 'Extraction failed.');
+            setStep('url');
+            setBusy(false);
+            setJobId(null);
+          } else {
+            pollRef.current = setTimeout(tick, 2000);
+          }
+        } catch (e) {
+          if (cancelled) return;
+          // 404 or transient issue — keep polling a few more times.
+          pollRef.current = setTimeout(tick, 2500);
+        }
+      };
+      pollRef.current = setTimeout(tick, 1500);
+      return () => {
+        cancelled = true;
+        if (pollRef.current) clearTimeout(pollRef.current);
+      };
+    }, [jobId, onVideoExtracted]);
 
     const doExtract = async (e) => {
       e.preventDefault();
-      if (!url.trim()) return;
+      if (!trimmedUrl) return;
       setBusy(true); setErr(null);
       try {
-        const parsed = await api.extract(url.trim());
-        setDraft({
-          id: newId(),
-          ...parsed,
-          tags: [],
-          notes: '',
-          rating: 0,
-        });
-        setStep('edit');
+        if (isVideoUrl(trimmedUrl)) {
+          // Async video pipeline.
+          const { jobId: id } = await api.extractVideo(trimmedUrl, analysis);
+          setJobId(id);
+          setProgress('Queued');
+          setStep('polling');
+        } else {
+          // Sync recipe-site path (existing).
+          const parsed = await api.extract(trimmedUrl);
+          setDraft({
+            id: newId(),
+            ...parsed,
+            tags: [],
+            notes: '',
+            rating: 0,
+          });
+          setStep('edit');
+        }
       } catch (e) {
         setErr(e.message || 'Extraction failed.');
       } finally {
-        setBusy(false);
+        if (!isVideoUrl(trimmedUrl)) setBusy(false);
       }
     };
 
@@ -945,28 +1088,73 @@
       }
     };
 
+    if (step === 'polling') {
+      return (
+        <div>
+          <div className="add-card" style={{textAlign:'center', padding:'48px 28px'}}>
+            <div className="empty-art" style={{fontSize:'72px', marginBottom:'18px'}}>•••</div>
+            <h2 style={{marginBottom:'10px'}}>Extracting your recipe</h2>
+            <p style={{color:'var(--muted)', marginBottom:'24px'}}>
+              {progress || 'Working on it…'}
+            </p>
+            <div className="spinner" style={{width:'24px', height:'24px', borderWidth:'3px'}} />
+            <p style={{color:'var(--muted)', fontSize:'13px', marginTop:'24px'}}>
+              {platform === 'instagram' ? 'Instagram' : platform === 'tiktok' ? 'TikTok' : 'Video'} reels usually take 15–30 seconds.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (step === 'url') {
       return (
         <div>
           <button className="detail-back" onClick={onCancel}><Icon.Back /> Cancel</button>
           <div className="add-card">
             <h1 style={{marginBottom:'8px'}}>Add a recipe</h1>
-            <p style={{color:'var(--muted)', marginBottom:'24px'}}>Paste a link from any recipe site. We'll pull the ingredients and steps.</p>
+            <p style={{color:'var(--muted)', marginBottom:'24px'}}>
+              Paste a link from any recipe site, Instagram reel, or TikTok. We'll pull the ingredients and steps.
+            </p>
             <form onSubmit={doExtract}>
               <input
                 className="url-input"
                 type="url"
-                placeholder="https://cooking.nytimes.com/recipes/…"
+                placeholder="https://cooking.nytimes.com/recipes/…  or  https://instagram.com/reel/…"
                 value={url}
                 onChange={e => setUrl(e.target.value)}
                 autoFocus
                 inputMode="url"
               />
+
+              {showAnalysis && (
+                <div style={{marginTop:'18px'}}>
+                  <label className="field-label" style={{marginBottom:'8px'}}>How should we extract it?</label>
+                  <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
+                    {[
+                      { v:'auto',   label:'Smart (recommended)', desc:'Caption first, then audio' },
+                      { v:'audio',  label:'Audio only',          desc:'Skip caption, transcribe' },
+                      { v:'gemini', label:'Full video (Gemini)', desc:'Most thorough, costs more' },
+                    ].map(opt => (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => setAnalysis(opt.v)}
+                        className={'tag' + (analysis === opt.v ? ' active' : '')}
+                        style={{padding:'10px 14px', cursor:'pointer'}}
+                        title={opt.desc}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {err && <div className="error-box" style={{marginTop:'14px'}}>{err}</div>}
               <div style={{display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'20px'}}>
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={busy || !url.trim()}>
-                  {busy ? <><span className="spinner" /> Extracting…</> : 'Extract recipe'}
+                <button type="submit" className="btn btn-primary" disabled={busy || !trimmedUrl}>
+                  {busy ? <><span className="spinner" /> {showAnalysis ? 'Starting…' : 'Extracting…'}</> : 'Extract recipe'}
                 </button>
               </div>
             </form>
@@ -1128,7 +1316,31 @@
       body = <ListView recipes={recipes} onOpen={openRecipe} onAdd={goAdd}
                        query={query} setQuery={setQuery} tag={tag} setTag={setTag} />;
     } else if (view.name === 'add') {
-      body = <AddView onCancel={goList} onSaved={(r) => { setRecipes(rs => { const next = [r, ...rs.filter(x => x.id !== r.id)]; saveCache(next); return next; }); showToast('Saved to Dropbox'); openRecipe(r.id); }} />;
+      body = <AddView
+        onCancel={goList}
+        onSaved={(r) => {
+          setRecipes(rs => { const next = [r, ...rs.filter(x => x.id !== r.id)]; saveCache(next); return next; });
+          showToast('Saved to Dropbox');
+          openRecipe(r.id);
+        }}
+        onVideoExtracted={async (recipeId) => {
+          // Worker already saved the recipe to Dropbox; refresh and navigate.
+          showToast('Recipe extracted');
+          try {
+            const fresh = await api.get(recipeId);
+            setRecipes(rs => {
+              const next = [fresh, ...rs.filter(x => x.id !== fresh.id)];
+              saveCache(next);
+              return next;
+            });
+            openRecipe(recipeId);
+          } catch (e) {
+            // Fall back to a full list refresh.
+            await refresh();
+            openRecipe(recipeId);
+          }
+        }}
+      />;
     } else if (view.name === 'edit') {
       const r = recipes.find(x => x.id === view.id);
       if (!r) { goList(); return null; }

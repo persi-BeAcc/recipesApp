@@ -1477,6 +1477,87 @@
     return r.totalTime || r.cookTime || r.prepTime || '';
   }
 
+  // ---------- Unit conversion (metric ↔ US) ----------
+  // Default to metric for non-US locales; fall back to US for en-US.
+  const UNITS_KEY = 'recipes-units-v1';
+  function defaultUnits() {
+    const saved = localStorage.getItem(UNITS_KEY);
+    if (saved === 'us' || saved === 'metric') return saved;
+    const lang = (navigator.language || 'en-US').toLowerCase();
+    return lang.startsWith('en-us') || lang === 'en' ? 'us' : 'metric';
+  }
+  function saveUnits(u) { try { localStorage.setItem(UNITS_KEY, u); } catch {} }
+
+  function parseQty(s) {
+    s = String(s).trim();
+    // mixed: "1 1/2"
+    let m = s.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+    if (m) return parseFloat(m[1]) + parseInt(m[2]) / parseInt(m[3]);
+    // pure fraction: "1/2"
+    m = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+    if (m) return parseInt(m[1]) / parseInt(m[2]);
+    // decimal/integer
+    return parseFloat(s);
+  }
+  function fmt(n, unit) {
+    if (n >= 100) return `${Math.round(n)} ${unit}`;
+    if (n >= 10)  return `${Math.round(n)} ${unit}`;
+    if (n >= 1)   return `${n.toFixed(1).replace(/\.0$/, '')} ${unit}`;
+    return `${n.toFixed(2)} ${unit}`;
+  }
+
+  // Annotate measurements in arbitrary text with their converted equivalent in parens.
+  // We always KEEP the original (so ratios/instructions stay verifiable), and add the
+  // converted value alongside. When system='us' we leave the text unchanged.
+  function convertText(text, system) {
+    if (!text || system !== 'metric') return text || '';
+
+    // Temperature: 350°F / 350 F / 350 degrees
+    text = text.replace(/(\d{2,3})\s*°?\s*F\b/g, (_m, f) => {
+      const c = Math.round((parseFloat(f) - 32) * 5 / 9);
+      return `${f}°F (${c}°C)`;
+    });
+
+    // Volume — cups, tbsp, tsp, fl oz
+    const volumeRe = /(\d+(?:\s+\d+\/\d+)?|\d+\/\d+|\d+(?:\.\d+)?)\s*(cups?\b|tbsps?\b|tablespoons?\b|tsps?\b|teaspoons?\b|fl\.?\s*ozs?\.?\b|fluid\s+ounces?\b)/gi;
+    text = text.replace(volumeRe, (m, qty, unit) => {
+      const q = parseQty(qty);
+      if (!isFinite(q)) return m;
+      const u = unit.toLowerCase().replace(/\./g, '').trim();
+      let ml;
+      if (/^cups?$/.test(u))                                      ml = q * 240;
+      else if (/^tbsps?$|^tablespoons?$/.test(u))                  ml = q * 15;
+      else if (/^tsps?$|^teaspoons?$/.test(u))                     ml = q * 5;
+      else if (/^fl\s*ozs?$|^fluid\s+ounces?$/.test(u))            ml = q * 30;
+      else return m;
+      const out = ml >= 1000 ? fmt(ml / 1000, 'L') : `${Math.round(ml)} ml`;
+      return `${m} (${out})`;
+    });
+
+    // Weight — oz, lb
+    const weightRe = /(\d+(?:\s+\d+\/\d+)?|\d+\/\d+|\d+(?:\.\d+)?)\s*(oz\b|ozs\b|ounces?\b|lb\b|lbs\b|pounds?\b)/gi;
+    text = text.replace(weightRe, (m, qty, unit) => {
+      const q = parseQty(qty);
+      if (!isFinite(q)) return m;
+      const u = unit.toLowerCase();
+      const isLb = /^lb|^pound/.test(u);
+      const g = q * (isLb ? 453.6 : 28.35);
+      const out = g >= 1000 ? fmt(g / 1000, 'kg') : `${Math.round(g)} g`;
+      return `${m} (${out})`;
+    });
+
+    // Length — inches
+    const lenRe = /(\d+(?:\s+\d+\/\d+)?|\d+\/\d+|\d+(?:\.\d+)?)\s*(inches?|in\b|")/gi;
+    text = text.replace(lenRe, (m, qty) => {
+      const q = parseQty(qty);
+      if (!isFinite(q)) return m;
+      const cm = q * 2.54;
+      return `${m} (${cm.toFixed(1).replace(/\.0$/, '')} cm)`;
+    });
+
+    return text;
+  }
+
   // ---------- Toast ----------
   let toastTimeout;
   function useToast() {
@@ -1883,7 +1964,7 @@
   }
 
   // ---------- Detail ----------
-  function DetailScreen({ recipe, onClose, onSave, onDelete, onEdit }) {
+  function DetailScreen({ recipe, onClose, onSave, onDelete, onEdit, units, setUnits }) {
     const [tab, setTab] = useState('ingredients');
     const [checkedIng, setCheckedIng] = useState(() => new Set(loadChecked(recipe.id)));
     const [stepIdx, setStepIdx] = useState(0);
@@ -1893,10 +1974,44 @@
     const [cooked, setCooked] = useState(recipe.cooked || 0);
     const [dragX, setDragX] = useState(0);
     const [closing, setClosing] = useState(false);
-    const [justCooked, setJustCooked] = useState(false);
+    const [cooking, setCooking] = useState(false);          // cooking mode active (wake lock + steps tab)
     const [cookedFlash, setCookedFlash] = useState(false);
+    const wakeLockRef = useRef(null);
     const swipeStart = useRef(null);
     const personalDirty = useRef(false);
+
+    // ---- Wake lock: keep screen awake while cooking ----
+    const acquireWakeLock = useCallback(async () => {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        // Auto-rerequest if the system releases it (e.g. tab backgrounded then refocused)
+        wakeLockRef.current.addEventListener('release', () => { wakeLockRef.current = null; });
+      } catch {
+        wakeLockRef.current = null;
+      }
+    }, []);
+    const releaseWakeLock = useCallback(() => {
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release(); } catch {}
+        wakeLockRef.current = null;
+      }
+    }, []);
+
+    // Re-acquire when tab returns to foreground while still cooking.
+    useEffect(() => {
+      if (!cooking) return;
+      const onVisible = () => {
+        if (document.visibilityState === 'visible' && !wakeLockRef.current) {
+          acquireWakeLock();
+        }
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      return () => document.removeEventListener('visibilitychange', onVisible);
+    }, [cooking, acquireWakeLock]);
+
+    // Release on unmount or when cooking ends.
+    useEffect(() => () => releaseWakeLock(), [releaseWakeLock]);
 
     const platform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
     const isSocial = platform === 'instagram' || platform === 'tiktok';
@@ -1957,18 +2072,22 @@
       try { await onSave({ ...recipe, favorite: next }); } catch {}
     };
 
-    const startCooking = async () => {
-      if (justCooked) return; // debounce double-tap
+    const toggleCooking = async () => {
+      if (cooking) {
+        // End the cooking session.
+        setCooking(false);
+        releaseWakeLock();
+        return;
+      }
+      // Start cooking: switch to steps tab, jump to first step, bump count, acquire wake lock.
       setTab('steps');
       setStepIdx(0);
       const next = cooked + 1;
       setCooked(next);
-      setJustCooked(true);
+      setCooking(true);
       setCookedFlash(true);
-      // Vibrate on mobile if supported (subtle confirmation)
+      acquireWakeLock();
       if (navigator.vibrate) try { navigator.vibrate(15); } catch {}
-      // Reset confirmation states after the animations complete
-      setTimeout(() => setJustCooked(false), 1600);
       setTimeout(() => setCookedFlash(false), 600);
       try { await onSave({ ...recipe, cooked: next, favorite }); } catch {}
     };
@@ -2061,6 +2180,23 @@
             </div>
           )}
 
+          {cooking && (
+            <div className="cooking-indicator">
+              <span className="dot-pulse" /> Cooking · screen stays on
+            </div>
+          )}
+
+          <div className="units-toggle-row">
+            <button
+              className={'units-toggle ' + (units === 'us' ? 'on' : '')}
+              onClick={() => setUnits('us')}
+            >US</button>
+            <button
+              className={'units-toggle ' + (units === 'metric' ? 'on' : '')}
+              onClick={() => setUnits('metric')}
+            >Metric</button>
+          </div>
+
           <div className="tabs">
             <button className={'tab ' + (tab === 'ingredients' ? 'on' : '')} onClick={() => setTab('ingredients')}>
               Ingredients <span className="tab-count">{ingredients.length}</span>
@@ -2084,7 +2220,7 @@
                       </svg>
                     )}
                   </span>
-                  <span className="ing-text">{ing}</span>
+                  <span className="ing-text">{convertText(ing, units)}</span>
                 </li>
               ))}
             </ul>
@@ -2103,7 +2239,7 @@
                   onClick={() => setStepIdx(step.i)}
                 >
                   <span className="step-num">{instructions.slice(0, step.i).filter(s => !s.isHeader).length + 1}</span>
-                  <span className="step-text">{step.text}</span>
+                  <span className="step-text">{convertText(step.text, units)}</span>
                 </li>
               ))}
             </ol>
@@ -2132,12 +2268,11 @@
 
           <div className="detail-actions-bar">
             <button
-              className={'cook-btn ' + (justCooked ? 'started' : '')}
-              onClick={startCooking}
-              disabled={justCooked}
+              className={'cook-btn ' + (cooking ? 'started' : '')}
+              onClick={toggleCooking}
             >
-              <span style={{fontSize: 16}}>{justCooked ? '✓' : '👨‍🍳'}</span>
-              {justCooked ? 'Cooking now · Step 1' : 'Start cooking'}
+              <span style={{fontSize: 16}}>{cooking ? '⏹' : '👨‍🍳'}</span>
+              {cooking ? 'End cooking' : 'Start cooking'}
             </button>
             <button className="ghost-btn" onClick={onEdit} aria-label="Edit" style={{padding: '0 14px'}}>
               <Icon.Edit />

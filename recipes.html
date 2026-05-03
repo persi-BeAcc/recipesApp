@@ -51,6 +51,31 @@
       --gap: 12px;
     }
 
+    /* Dark mode — applied via [data-theme="dark"] on .app-root */
+    .app-root[data-theme="dark"] {
+      --header-bg:    oklch(0.32 0.030 125);
+      --header-ink:   oklch(0.95 0.008 90);
+      --header-ink-2: oklch(0.80 0.010 90);
+      --header-line:  oklch(0.22 0.020 125);
+
+      --accent:       oklch(0.62 0.060 125);
+      --accent-soft:  oklch(0.30 0.030 125);
+      --accent-ink:   oklch(0.85 0.060 125);
+
+      --bg:        oklch(0.16 0.008 90);
+      --bg-elev:   oklch(0.22 0.010 90);
+      --bg-sunk:   oklch(0.13 0.008 90);
+      --ink:       oklch(0.95 0.006 90);
+      --ink-2:     oklch(0.78 0.006 90);
+      --ink-3:     oklch(0.58 0.006 90);
+      --line:      oklch(0.28 0.010 90);
+      --line-strong: oklch(0.40 0.014 90);
+
+      --shadow-card:  0 1px 2px oklch(0 0 0 / 0.5), 0 4px 12px oklch(0 0 0 / 0.4);
+      --shadow-fab:   0 6px 18px oklch(0 0 0 / 0.5), 0 2px 4px oklch(0 0 0 / 0.3);
+      --shadow-sheet: 0 -8px 40px oklch(0 0 0 / 0.5);
+    }
+
     * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0;
@@ -206,6 +231,78 @@
       color: var(--accent);
       border-color: var(--accent);
     }
+
+    /* Settings sheet */
+    .settings-section { margin-bottom: 24px; }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 4px;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-row-label { font-size: 14px; color: var(--ink); font-weight: 500; }
+    .setting-row-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+    .setting-row-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 14px 4px;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background 140ms;
+    }
+    .setting-row-btn:last-child { border-bottom: none; }
+    .setting-row-btn:hover { background: var(--bg-sunk); }
+    .setting-row-btn .setting-row-label { display: flex; align-items: center; gap: 10px; }
+    .setting-row-btn .chev { color: var(--ink-3); font-size: 18px; }
+    .setting-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .setting-status .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .setting-status.warn { color: oklch(0.55 0.12 60); }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 26px;
+      background: var(--line-strong);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 200ms;
+      flex-shrink: 0;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 22px;
+      height: 22px;
+      background: oklch(1 0 0);
+      border-radius: 50%;
+      box-shadow: 0 1px 3px oklch(0 0 0 / 0.2);
+      transition: transform 200ms cubic-bezier(.2,.7,.3,1.4);
+    }
+    .toggle.on::after { transform: translateX(18px); }
 
     /* Stats sheet */
     .stats-row {
@@ -1584,7 +1681,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <div class="version" id="version">v2026.05.02.14</div>
+  <div class="version" id="version">v2026.05.02.15</div>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1601,7 +1698,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.14';
+  const APP_VERSION       = 'v2026.05.02.15';
   const PASSCODE_KEY      = 'recipes-passcode';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY       = 'recipes-checked-v1';
@@ -1909,7 +2006,7 @@
   }
 
   // ---------- Library ----------
-  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onOpenStats, onLongPress, onSwipeAction, onRefresh, refreshing }) {
+  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onOpenSettings, onLongPress, onSwipeAction, onRefresh, refreshing }) {
     const [pullY, setPullY] = useState(0);
     const startY = useRef(null);
     const scrollerRef = useRef(null);
@@ -2015,14 +2112,12 @@
             </button>
             <button
               className="filter-btn"
-              onClick={onOpenStats}
-              aria-label="Stats"
+              onClick={onOpenSettings}
+              aria-label="Settings"
             >
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 21h18" />
-                <rect x="5" y="11" width="3" height="8" />
-                <rect x="11" y="6" width="3" height="13" />
-                <rect x="17" y="14" width="3" height="5" />
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
             </button>
           </div>
@@ -2106,23 +2201,45 @@
     const platform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
     const sourceLabel = platform === 'instagram' ? 'IG' : platform === 'tiktok' ? 'TikTok' : (urlHost(recipe.sourceUrl).replace(/\.com$/,'') || '');
 
+    // CRITICAL: do NOT capture the pointer on down. Only capture once the
+    // user has clearly committed to a horizontal swipe — otherwise the card
+    // hijacks every touch and the user can't scroll the list vertically.
     const onPointerDown = (e) => {
-      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
-      startRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+      startRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), captured: false, abandoned: false };
       longPressFired.current = false;
       setPressed(true);
       longPressTimer.current = setTimeout(() => {
-        longPressFired.current = true;
-        if (navigator.vibrate) navigator.vibrate(10);
-        onLongPress?.(recipe);
+        if (startRef.current && !startRef.current.abandoned) {
+          longPressFired.current = true;
+          if (navigator.vibrate) navigator.vibrate(10);
+          onLongPress?.(recipe);
+        }
       }, 480);
     };
     const onPointerMove = (e) => {
-      if (!startRef.current) return;
+      if (!startRef.current || startRef.current.abandoned) return;
       const dx = e.clientX - startRef.current.x;
       const dy = e.clientY - startRef.current.y;
-      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) clearTimeout(longPressTimer.current);
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
+
+      // If movement is dominantly vertical, abandon — let the browser scroll.
+      // We don't capture, so the parent container's overflow-y: auto wins.
+      if (!startRef.current.captured && Math.abs(dy) > Math.abs(dx) + 4) {
+        startRef.current.abandoned = true;
+        clearTimeout(longPressTimer.current);
+        setPressed(false);
+        return;
+      }
+
+      // Cancel long-press once the user starts moving at all.
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) clearTimeout(longPressTimer.current);
+
+      // Horizontal swipe committed — NOW take pointer capture so the card
+      // gesture doesn't drop frames if the touch leaves the card bounds.
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        if (!startRef.current.captured) {
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+          startRef.current.captured = true;
+        }
         setSwipeX(Math.max(-140, Math.min(140, dx)));
       }
     };
@@ -2130,10 +2247,16 @@
       clearTimeout(longPressTimer.current);
       setPressed(false);
       if (!startRef.current) return;
-      const dx = e.clientX - startRef.current.x;
-      const dy = e.clientY - startRef.current.y;
-      const dt = Date.now() - startRef.current.t;
+      const { x, y, t, captured, abandoned } = startRef.current;
+      const dx = e.clientX - x;
+      const dy = e.clientY - y;
+      const dt = Date.now() - t;
       startRef.current = null;
+
+      // Vertical-scroll abandon: nothing else to do.
+      if (abandoned) return;
+
+      // Horizontal swipe committed past threshold.
       if (Math.abs(swipeX) > 70) {
         const action = swipeX > 0 ? 'favorite' : 'delete';
         setActionFlash(action);
@@ -2143,7 +2266,9 @@
         return;
       }
       setSwipeX(0);
-      if (!longPressFired.current && Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 400) {
+
+      // Tap (no significant movement, no captured swipe, fast).
+      if (!longPressFired.current && !captured && Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 500) {
         onOpen?.(recipe);
       }
     };
@@ -2802,6 +2927,70 @@
     );
   }
 
+  // ---------- Settings sheet ----------
+  // Centralized place for connection status, dark mode, and stats. Replaces
+  // the previous header-icon clutter with a single ⚙ button.
+  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount }) {
+    return (
+      <div className="sheet-overlay" onClick={onClose}>
+        <div className="sheet" onClick={e => e.stopPropagation()}>
+          <div className="sheet-grab" />
+          <h2 className="sheet-title">Settings</h2>
+          <p className="sheet-sub">Customize your kitchen.</p>
+
+          <div className="settings-section">
+            <h3 className="filter-section-title">Appearance</h3>
+            <div className="setting-row">
+              <div>
+                <div className="setting-row-label">Dark mode</div>
+                <div className="setting-row-sub">Easier on the eyes at night</div>
+              </div>
+              <div
+                className={'toggle ' + (darkMode ? 'on' : '')}
+                onClick={() => setDarkMode(!darkMode)}
+                role="button"
+                aria-label="Toggle dark mode"
+                tabIndex={0}
+              />
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <h3 className="filter-section-title">Library</h3>
+            <button className="setting-row-btn" onClick={() => { onClose(); onOpenStats(); }}>
+              <div className="setting-row-label">
+                <span style={{fontSize: 16}}>📊</span>
+                <span>Kitchen stats</span>
+              </div>
+              <span className="chev">›</span>
+            </button>
+          </div>
+
+          <div className="settings-section">
+            <h3 className="filter-section-title">Connection</h3>
+            <div className="setting-row">
+              <div>
+                <div className="setting-row-label">Dropbox</div>
+                <div className="setting-row-sub">{recipesCount} recipes synced via household passcode</div>
+              </div>
+              <span className="setting-status">
+                <span className="dot" />
+                Connected
+              </span>
+            </div>
+            <button className="ghost-btn" onClick={onSignOut} style={{width: '100%', marginTop: 12}}>
+              Sign out (forget passcode)
+            </button>
+          </div>
+
+          <p style={{textAlign: 'center', color: 'var(--ink-3)', fontSize: 11, fontFamily: 'var(--font-mono)', marginTop: 16, marginBottom: 0}}>
+            {APP_VERSION}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // ---------- Stats sheet ----------
   // Aggregates from already-loaded recipes — no extra API call. Shows what
   // worked (which extraction paths the user is hitting), how often each
@@ -3378,6 +3567,16 @@
     const [showImport, setShowImport] = useState(false);
     const [showFilter, setShowFilter] = useState(false);
     const [showStats, setShowStats] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+    const [darkMode, setDarkModeState] = useState(() => localStorage.getItem('recipes-dark') === 'true');
+    const setDarkMode = useCallback((v) => {
+      setDarkModeState(v);
+      try { localStorage.setItem('recipes-dark', v ? 'true' : 'false'); } catch {}
+    }, []);
+    useEffect(() => {
+      const root = document.querySelector('.app-root');
+      if (root) root.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    }, [darkMode]);
     const [editingId, setEditingId] = useState(null);
     const [longPressed, setLongPressed] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -3468,7 +3667,7 @@
           onOpen={openRecipe}
           onOpenImport={() => setShowImport(true)}
           onOpenFilter={() => setShowFilter(true)}
-          onOpenStats={() => setShowStats(true)}
+          onOpenSettings={() => setShowSettings(true)}
           onLongPress={(r) => setLongPressed(r)}
           onSwipeAction={(r, action) => {
             if (action === 'favorite') toggleFavorite(r.id);
@@ -3491,6 +3690,22 @@
           <StatsSheet
             recipes={recipes}
             onClose={() => setShowStats(false)}
+          />
+        )}
+
+        {showSettings && (
+          <SettingsSheet
+            onClose={() => setShowSettings(false)}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            onOpenStats={() => setShowStats(true)}
+            recipesCount={recipes.length}
+            onSignOut={() => {
+              if (!confirm('Sign out and forget the passcode? Your recipes stay safe in Dropbox.')) return;
+              localStorage.removeItem(PASSCODE_KEY);
+              localStorage.removeItem(RECIPES_CACHE_KEY);
+              window.location.reload();
+            }}
           />
         )}
 

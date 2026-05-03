@@ -1,26 +1,18 @@
 // api/video-link.js
 //
 // Mints a short-lived Dropbox temporary link for an archived video so the
-// browser can stream it via an HTML5 <video> tag.
+// browser can stream it via an HTML5 <video> tag. Auth is per-user.
 //
-// Request: GET /api/video-link?id=<recipeId>
-// Response: { url: "<temp-link>" }
-//
-// We DON'T accept arbitrary Dropbox paths from the client — only recipeId.
-// We look up the recipe, read its videoPath, and use that. This prevents
-// passcode holders from probing the App folder.
+// Request: GET /api/video-link?id=<recipeId>   (with x-dropbox-token header)
 
 import { dbxReadJson, dbxTempLink } from '../lib/dropbox.js';
-
-const PASSCODE = process.env.APP_PASSCODE;
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const pass = req.headers['x-app-passcode'];
-  if (!PASSCODE || pass !== PASSCODE) {
-    return json(res, 401, { error: 'unauthorized' });
-  }
+  const dbxToken = req.headers['x-dropbox-token'];
+  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+
   if (req.method !== 'GET') {
     return json(res, 405, { error: 'method not allowed' });
   }
@@ -31,18 +23,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const recipe = await dbxReadJson(`/recipe-${id}.json`);
+    const recipe = await dbxReadJson(dbxToken, `/recipe-${id}.json`);
     if (!recipe.videoPath || typeof recipe.videoPath !== 'string') {
       return json(res, 404, { error: 'no archived video for this recipe' });
     }
-    // Defense-in-depth: only allow paths under /videos/
     if (!recipe.videoPath.startsWith('/videos/')) {
       return json(res, 400, { error: 'bad video path' });
     }
-    const link = await dbxTempLink(recipe.videoPath);
+    const link = await dbxTempLink(dbxToken, recipe.videoPath);
     return json(res, 200, { url: link });
   } catch (e) {
-    if (String(e.message).includes('not_found')) {
+    if (String(e?.message || e).includes('not_found')) {
       return json(res, 404, { error: 'video not found' });
     }
     console.error('[video-link]', e);

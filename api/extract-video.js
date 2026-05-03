@@ -3,18 +3,12 @@
 // Kicks off an async video extraction job. Returns immediately with a jobId.
 // The actual work happens in the Inngest worker (api/inngest.js).
 //
-// Request body:
-//   { url: string, analysis?: 'auto' | 'audio' | 'audio_frames' | 'gemini', frames?: string[] }
-//
-// `frames` is an optional array of JPEG dataURLs extracted in the browser
-// (used when analysis === 'audio_frames').
-//
-// Response: { jobId } on success, { error } on failure.
+// Auth: per-user. Caller's `x-dropbox-token` is forwarded into the Inngest
+// event payload so the worker can write recipes + archive videos into the
+// caller's own Dropbox app folder.
 
 import { Inngest } from 'inngest';
 import { dbxWriteJson } from '../lib/dropbox.js';
-
-const PASSCODE = process.env.APP_PASSCODE;
 
 const inngest = new Inngest({
   id: 'recipes-app',
@@ -24,10 +18,9 @@ const inngest = new Inngest({
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const pass = req.headers['x-app-passcode'];
-  if (!PASSCODE || pass !== PASSCODE) {
-    return json(res, 401, { error: 'unauthorized' });
-  }
+  const dbxToken = req.headers['x-dropbox-token'];
+  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'method not allowed' });
   }
@@ -60,27 +53,21 @@ export default async function handler(req, res) {
   };
 
   try {
-    // Persist the job record so /api/job-status can read it back.
-    await dbxWriteJson(`/jobs/job-${jobId}.json`, job);
+    await dbxWriteJson(dbxToken, `/jobs/job-${jobId}.json`, job);
   } catch (e) {
     console.error('[extract-video] could not write job record:', e);
     return json(res, 500, { error: 'could not queue job' });
   }
 
   try {
-    // Fire the Inngest event. Frames are inlined into the event payload.
-    // Inngest accepts up to ~512KB events; 6 small JPEGs (~50KB each) fit.
     await inngest.send({
       name: 'recipes/video.extract',
-      data: { jobId, url, analysis, frames },
+      data: { jobId, url, analysis, frames, dbxToken },
     });
   } catch (e) {
-    // The job record exists but the event failed to dispatch. Mark the job
-    // as errored immediately so the client's polling loop sees a real error
-    // instead of waiting forever on "Queued".
     console.error('[extract-video] inngest.send failed:', e);
     try {
-      await dbxWriteJson(`/jobs/job-${jobId}.json`, {
+      await dbxWriteJson(dbxToken, `/jobs/job-${jobId}.json`, {
         ...job,
         status: 'error',
         error: 'Could not dispatch worker job: ' + (e.message || 'unknown'),

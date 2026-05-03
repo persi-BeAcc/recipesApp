@@ -47,12 +47,13 @@ const extractVideoFn = inngest.createFunction(
   { id: 'extract-video', name: 'Extract recipe from video URL' },
   { event: 'recipes/video.extract' },
   async ({ event, step }) => {
-    const { jobId, url, analysis, frames } = event.data;
+    const { jobId, url, analysis, frames, dbxToken } = event.data;
     if (!jobId) throw new Error('jobId missing from event');
+    if (!dbxToken) throw new Error('dbxToken missing from event');
 
     // Mark the job as processing so the client sees movement.
     await step.run('mark-processing', async () => {
-      await updateJob(jobId, { status: 'processing', progress: 'Starting' });
+      await updateJob(dbxToken, jobId, { status: 'processing', progress: 'Starting' });
     });
 
     try {
@@ -62,7 +63,7 @@ const extractVideoFn = inngest.createFunction(
       const platform = detectPlatform(url);
       const reel = (platform === 'instagram' || platform === 'tiktok')
         ? await step.run('resolve', async () => {
-            await updateJob(jobId, { progress: `Resolving ${platform} video` }).catch(() => {});
+            await updateJob(dbxToken, jobId, { progress: `Resolving ${platform} video` }).catch(() => {});
             return resolveSocialVideo(url, platform);
           })
         : null;
@@ -79,7 +80,7 @@ const extractVideoFn = inngest.createFunction(
           const [baseResult, frameNotes] = await Promise.all([
             extractFromVideoUrl({
               url, analysis: 'audio', prefetchedReel: reel,
-              onProgress: (msg) => updateJob(jobId, { progress: msg }).catch(() => {}),
+              onProgress: (msg) => updateJob(dbxToken, jobId, { progress: msg }).catch(() => {}),
             }),
             extractFramesWithClaude(frames),
           ]);
@@ -105,17 +106,17 @@ const extractVideoFn = inngest.createFunction(
         } else {
           result = await extractFromVideoUrl({
             url, analysis, prefetchedReel: reel,
-            onProgress: (msg) => updateJob(jobId, { progress: msg }).catch(() => {}),
+            onProgress: (msg) => updateJob(dbxToken, jobId, { progress: msg }).catch(() => {}),
           });
         }
 
         // Archive mp4 to Dropbox if we got one.
         let videoPath = null;
         if (result.mp4Buffer && result.mp4Buffer.length > 0) {
-          await updateJob(jobId, { progress: 'Archiving video' }).catch(() => {});
+          await updateJob(dbxToken, jobId, { progress: 'Archiving video' }).catch(() => {});
           videoPath = `/videos/${jobId}.mp4`;
           try {
-            await dbxUpload(videoPath, result.mp4Buffer);
+            await dbxUpload(dbxToken, videoPath, result.mp4Buffer);
             console.log(`[archive] uploaded ${result.mp4Buffer.length} bytes to ${videoPath}`);
           } catch (err) {
             console.warn('[archive] dropbox upload failed:', err.message);
@@ -139,12 +140,12 @@ const extractVideoFn = inngest.createFunction(
           createdAt: now,
           updatedAt: now,
         };
-        await dbxWriteJson(`/recipe-${id}.json`, finalRecipe);
+        await dbxWriteJson(dbxToken, `/recipe-${id}.json`, finalRecipe);
         return id;
       });
 
       await step.run('mark-done', async () => {
-        await updateJob(jobId, {
+        await updateJob(dbxToken, jobId, {
           status: 'done',
           progress: 'Recipe saved',
           recipeId,
@@ -154,12 +155,11 @@ const extractVideoFn = inngest.createFunction(
       return { recipeId };
     } catch (err) {
       console.error('[inngest worker] failed:', err);
-      // Update job with error status — surface to the user.
-      await updateJob(jobId, {
+      await updateJob(dbxToken, jobId, {
         status: 'error',
         error: String(err && err.message ? err.message : err).slice(0, 500),
       }).catch(() => {});
-      throw err; // let Inngest retry
+      throw err;
     }
   }
 );
@@ -168,15 +168,15 @@ const extractVideoFn = inngest.createFunction(
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function updateJob(jobId, patch) {
+async function updateJob(dbxToken, jobId, patch) {
   let job;
   try {
-    job = await dbxReadJson(`/jobs/job-${jobId}.json`);
+    job = await dbxReadJson(dbxToken, `/jobs/job-${jobId}.json`);
   } catch {
     job = { id: jobId };
   }
   const next = { ...job, ...patch, updatedAt: new Date().toISOString() };
-  await dbxWriteJson(`/jobs/job-${jobId}.json`, next);
+  await dbxWriteJson(dbxToken, `/jobs/job-${jobId}.json`, next);
   return next;
 }
 

@@ -1693,16 +1693,19 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.18';
-  const PASSCODE_KEY      = 'recipes-passcode';
+  const APP_VERSION       = 'v2026.05.02.19';
+  const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
+  const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY       = 'recipes-checked-v1';
 
   // ---------- API client ----------
+  function getDbxToken() { return localStorage.getItem(DBX_TOKEN_KEY) || ''; }
+
   function apiRequest(path, opts = {}) {
-    const passcode = localStorage.getItem(PASSCODE_KEY) || '';
+    const token = getDbxToken();
     const headers = Object.assign({}, opts.headers || {}, {
-      'x-app-passcode': passcode,
+      'x-dropbox-token': token,
     });
     if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
@@ -1710,7 +1713,8 @@
     }
     return fetch(path, { ...opts, headers }).then(async r => {
       if (r.status === 401) {
-        localStorage.removeItem(PASSCODE_KEY);
+        localStorage.removeItem(DBX_TOKEN_KEY);
+        localStorage.removeItem(DBX_ACCOUNT_KEY);
         window.location.reload();
         throw new Error('unauthorized');
       }
@@ -1730,6 +1734,10 @@
     extractVideo:   (url, analysis) => apiRequest('/api/extract-video', { method: 'POST', body: { url, analysis } }),
     jobStatus:      (jobId)         => apiRequest(`/api/job-status?id=${encodeURIComponent(jobId)}`),
     videoLink:      (id)            => apiRequest(`/api/video-link?id=${encodeURIComponent(id)}`),
+    whoami:         ()              => apiRequest('/api/whoami'),
+    disconnect:     ()              => apiRequest('/api/whoami?action=disconnect', { method: 'POST', body: {} }),
+    shareLink:      (id)            => apiRequest(`/api/share?id=${encodeURIComponent(id)}`, { method: 'POST', body: {} }),
+    saveShared:     (recipe, videoUrl) => apiRequest('/api/share', { method: 'POST', body: { recipe, videoUrl } }),
   };
 
   // ---------- URL classification ----------
@@ -1940,31 +1948,39 @@
     );
   }
 
-  // ---------- Passcode gate ----------
-  function PasscodeGate({ onUnlock }) {
-    const [val, setVal] = useState('');
-    const [busy, setBusy] = useState(false);
-    const [err, setErr] = useState(null);
-    const submit = async (e) => {
-      e.preventDefault();
-      if (!val.trim()) return;
-      setBusy(true); setErr(null);
-      localStorage.setItem(PASSCODE_KEY, val.trim());
-      try { await api.list(); onUnlock(); }
-      catch { localStorage.removeItem(PASSCODE_KEY); setErr('Wrong passcode.'); }
-      finally { setBusy(false); }
-    };
+  // ---------- Welcome / Connect screen ----------
+  // Replaces the old passcode gate. Each user OAuths to their own Dropbox;
+  // the refresh token gets stored in localStorage by the OAuth callback page.
+  function WelcomeScreen() {
+    const connect = () => { window.location.href = '/api/oauth?action=start'; };
     return (
       <div className="gate">
-        <form className="gate-card" onSubmit={submit}>
-          <div className="brand">My Kitchen<span className="dot">.</span></div>
-          <p>Enter the household passcode</p>
-          <input type="password" value={val} onChange={e => setVal(e.target.value)} autoFocus autoComplete="off" />
-          {err && <div className="error-box" style={{textAlign:'left'}}>{err}</div>}
-          <button className="primary-btn" disabled={busy}>
-            {busy ? <><span className="spinner on-accent"/> Checking…</> : 'Unlock'}
+        <div className="gate-card">
+          <div className="brand" style={{fontSize: 32, marginBottom: 4}}>My Kitchen<span className="dot">.</span></div>
+          <p style={{margin: '0 0 24px'}}>Save recipes from anywhere, synced to your own Dropbox.</p>
+          <div style={{textAlign: 'left', background: 'var(--bg-sunk)', borderRadius: 12, padding: '16px 18px', marginBottom: 22, border: '1px solid var(--line)'}}>
+            <div style={{fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)'}}>
+              <div style={{display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8}}>
+                <span style={{fontSize: 16, lineHeight: 1.2}}>🔒</span>
+                <span>Your recipes live in <b>your</b> Dropbox — only you can see them.</span>
+              </div>
+              <div style={{display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8}}>
+                <span style={{fontSize: 16, lineHeight: 1.2}}>📁</span>
+                <span>The app only sees its own folder (<code style={{fontSize: 11.5}}>Apps/Recipes/</code>). Nothing else.</span>
+              </div>
+              <div style={{display: 'flex', alignItems: 'flex-start', gap: 10}}>
+                <span style={{fontSize: 16, lineHeight: 1.2}}>↗️</span>
+                <span>Disconnect anytime from Settings or Dropbox.com.</span>
+              </div>
+            </div>
+          </div>
+          <button className="primary-btn" onClick={connect} style={{width:'100%', justifyContent:'center'}}>
+            Connect Dropbox
           </button>
-        </form>
+          <p style={{fontSize: 11.5, color: 'var(--ink-3)', marginTop: 16, marginBottom: 0}}>
+            You'll be redirected to Dropbox to authorize.
+          </p>
+        </div>
       </div>
     );
   }
@@ -2298,7 +2314,7 @@
   }
 
   // ---------- Detail ----------
-  function DetailScreen({ recipe, onClose, onSave, onDelete, onEdit, units, setUnits }) {
+  function DetailScreen({ recipe, onClose, onSave, onDelete, onEdit, onShare, units, setUnits }) {
     const [tab, setTab] = useState('ingredients');
     const [checkedIng, setCheckedIng] = useState(() => new Set(loadChecked(recipe.id)));
     const [stepIdx, setStepIdx] = useState(0);
@@ -2637,6 +2653,12 @@
               <span style={{fontSize: 16}}>{cooking ? '⏹' : '👨‍🍳'}</span>
               {cooking ? 'End cooking' : 'Start cooking'}
             </button>
+            <button className="ghost-btn" onClick={onShare} aria-label="Share" style={{padding: '0 14px'}}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            </button>
             <button className="ghost-btn" onClick={onEdit} aria-label="Edit" style={{padding: '0 14px'}}>
               <Icon.Edit />
             </button>
@@ -2893,7 +2915,7 @@
   // ---------- Settings sheet ----------
   // Centralized place for connection status, dark mode, and stats. Replaces
   // the previous header-icon clutter with a single ⚙ button.
-  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount }) {
+  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account }) {
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
@@ -2932,17 +2954,26 @@
           <div className="settings-section">
             <h3 className="filter-section-title">Connection</h3>
             <div className="setting-row">
-              <div>
+              <div style={{minWidth: 0, flex: 1}}>
                 <div className="setting-row-label">Dropbox</div>
-                <div className="setting-row-sub">{recipesCount} recipes synced via household passcode</div>
+                <div className="setting-row-sub" style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                  {account ? (account.name || account.email || 'Connected') : 'Connected'}
+                  {account && account.email ? ` · ${account.email}` : ''}
+                </div>
               </div>
               <span className="setting-status">
                 <span className="dot" />
-                Connected
+                Active
               </span>
             </div>
+            <div className="setting-row" style={{borderBottom: 'none'}}>
+              <div>
+                <div className="setting-row-label">Library</div>
+                <div className="setting-row-sub">{recipesCount} recipes saved</div>
+              </div>
+            </div>
             <button className="ghost-btn" onClick={onSignOut} style={{width: '100%', marginTop: 12}}>
-              Sign out (forget passcode)
+              Disconnect Dropbox
             </button>
           </div>
 
@@ -3520,9 +3551,111 @@
     );
   }
 
+  // ---------- Helpers for the share flow ----------
+  // Compress JSON → base64 in URL hash. Modern browsers all have CompressionStream.
+  async function packShareHash(payload) {
+    const json = JSON.stringify(payload);
+    if (typeof CompressionStream === 'undefined') {
+      // Fallback: just base64 (works, just longer URLs)
+      return btoa(unescape(encodeURIComponent(json)));
+    }
+    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+    const buf = await new Response(stream).arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return 'g:' + btoa(bin);
+  }
+  async function unpackShareHash(hash) {
+    if (!hash) return null;
+    const isGzip = hash.startsWith('g:');
+    const b64 = isGzip ? hash.slice(2) : hash;
+    if (!isGzip) {
+      try { return JSON.parse(decodeURIComponent(escape(atob(b64)))); }
+      catch { return null; }
+    }
+    if (typeof DecompressionStream === 'undefined') return null;
+    try {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      const text = await new Response(stream).text();
+      return JSON.parse(text);
+    } catch { return null; }
+  }
+
+  // ---------- Share-receive screen ----------
+  function ShareReceiveScreen({ payload, onSaved, onCancel }) {
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState(null);
+    const [withVideo, setWithVideo] = useState(!!payload.videoUrl);
+
+    const recipe = payload.recipe || {};
+    const onSave = async () => {
+      setBusy(true); setErr(null);
+      try {
+        const { recipe: saved } = await api.saveShared(recipe, withVideo ? payload.videoUrl : '');
+        onSaved(saved);
+      } catch (e) {
+        setErr(e.message || 'Could not save the shared recipe.');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="detail-screen" style={{overflowY: 'auto', padding: 0}}>
+        <div className="detail-body" style={{paddingTop: 'calc(28px + env(safe-area-inset-top))', borderRadius: 0, marginTop: 0, paddingBottom: 100}}>
+          <div className="preview-banner" style={{marginBottom: 18}}>✨ A friend shared this recipe with you</div>
+          <h1 className="detail-title">{recipe.title || 'Untitled'}</h1>
+          {recipe.description && <p className="detail-description">{recipe.description}</p>}
+          <div style={{marginBottom: 16}}>
+            <RecipeMedia recipe={recipe} />
+          </div>
+          {(recipe.prepTime || recipe.cookTime || recipe.totalTime || recipe.servings) && (
+            <div className="detail-meta-row">
+              {recipe.prepTime  && <div className="meta-pill"><span className="meta-pill-icon">⏱</span> Prep {recipe.prepTime}</div>}
+              {recipe.cookTime  && <div className="meta-pill"><span className="meta-pill-icon">🔥</span> Cook {recipe.cookTime}</div>}
+              {recipe.servings  && <div className="meta-pill"><span className="meta-pill-icon">🍽</span> {recipe.servings}</div>}
+            </div>
+          )}
+          <p style={{color: 'var(--ink-2)', fontSize: 13, margin: '4px 0 16px'}}>
+            <b>{(recipe.ingredients || []).length}</b> ingredients · <b>{(recipe.instructions || []).length}</b> steps
+            {recipe.author ? <> · by {recipe.author}</> : null}
+          </p>
+
+          {payload.videoUrl && (
+            <div className="setting-row" style={{margin: '0 0 16px', padding: '12px 14px', background: 'var(--bg-sunk)', borderRadius: 10, border: '1px solid var(--line)'}}>
+              <div>
+                <div className="setting-row-label">Include the video</div>
+                <div className="setting-row-sub">A copy will be saved to your Dropbox</div>
+              </div>
+              <div className={'toggle ' + (withVideo ? 'on' : '')} onClick={() => setWithVideo(!withVideo)} role="button" tabIndex={0} />
+            </div>
+          )}
+
+          {err && <div className="error-box">{err}</div>}
+          <div className="sheet-actions" style={{marginBottom: 24}}>
+            <button className="ghost-btn" onClick={onCancel}>Not now</button>
+            <button className="primary-btn" onClick={onSave} disabled={busy} style={{flex: 1}}>
+              {busy ? <><span className="spinner on-accent" /> Saving…</> : 'Save to my library'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ---------- App shell ----------
   function App() {
-    const [unlocked, setUnlocked] = useState(!!localStorage.getItem(PASSCODE_KEY));
+    const [token, setToken] = useState(() => getDbxToken());
+    const unlocked = !!token;
+    const [account, setAccount] = useState(() => {
+      try { return JSON.parse(localStorage.getItem(DBX_ACCOUNT_KEY) || 'null'); } catch { return null; }
+    });
+    const [sharePayload, setSharePayload] = useState(null);
+    const [shareLoading, setShareLoading] = useState(true);
     const [recipes, setRecipes] = useState(() => loadCache() || []);
     const [search, setSearch] = useState('');
     const [filters, setFilters] = useState(emptyFilters());
@@ -3576,6 +3709,33 @@
 
     useEffect(() => { if (unlocked) refresh(); }, [unlocked, refresh]);
 
+    // Fetch the connected account info on first load (after OAuth callback
+    // we got a snapshot from the callback page, but refresh it on every boot).
+    useEffect(() => {
+      if (!unlocked) return;
+      (async () => {
+        try {
+          const me = await api.whoami();
+          setAccount(me);
+          try { localStorage.setItem(DBX_ACCOUNT_KEY, JSON.stringify(me)); } catch {}
+        } catch {}
+      })();
+    }, [unlocked]);
+
+    // On boot, check if the URL has a #share=... payload. If so, decode it
+    // and surface the share-receive screen (works whether or not the user
+    // is connected — they'll need to connect to actually save).
+    useEffect(() => {
+      const hash = window.location.hash || '';
+      const m = hash.match(/^#share=([\s\S]+)/);
+      if (!m) { setShareLoading(false); return; }
+      (async () => {
+        const payload = await unpackShareHash(m[1]);
+        if (payload) setSharePayload(payload);
+        setShareLoading(false);
+      })();
+    }, []);
+
     const openRecipe = (r) => setOpenId(r.id);
     const closeRecipe = () => setOpenId(null);
 
@@ -3606,7 +3766,47 @@
       }
     };
 
-    if (!unlocked) return <PasscodeGate onUnlock={() => setUnlocked(true)} />;
+    if (shareLoading) return null;
+
+    // If a share payload came in via the URL hash, show the share-receive
+    // screen ON TOP of whatever else. If user isn't connected yet, they
+    // can still see the recipe preview but need to connect to save.
+    if (sharePayload && !unlocked) {
+      return (
+        <div className="app-root">
+          <ShareReceiveScreen
+            payload={sharePayload}
+            onCancel={() => { window.location.hash = ''; setSharePayload(null); }}
+            onSaved={() => {}}
+          />
+          <div style={{position: 'fixed', bottom: 24, left: 24, right: 24, maxWidth: 600, margin: '0 auto'}}>
+            <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth?action=start'; }} style={{width: '100%'}}>
+              Connect Dropbox to save it
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (!unlocked) return <WelcomeScreen />;
+
+    if (sharePayload) {
+      return (
+        <div className="app-root">
+          <ShareReceiveScreen
+            payload={sharePayload}
+            onCancel={() => { window.location.hash = ''; setSharePayload(null); }}
+            onSaved={(saved) => {
+              setRecipes(rs => { const next = [saved, ...rs.filter(x => x.id !== saved.id)]; saveCache(next); return next; });
+              window.location.hash = '';
+              setSharePayload(null);
+              setOpenId(saved.id);
+              showToast('Saved to your library');
+            }}
+          />
+        </div>
+      );
+    }
 
     const openRecipeObj = recipes.find(r => r.id === openId);
     const editingRecipe = recipes.find(r => r.id === editingId);
@@ -3651,9 +3851,12 @@
             setDarkMode={setDarkMode}
             onOpenStats={() => setShowStats(true)}
             recipesCount={recipes.length}
-            onSignOut={() => {
-              if (!confirm('Sign out and forget the passcode? Your recipes stay safe in Dropbox.')) return;
-              localStorage.removeItem(PASSCODE_KEY);
+            account={account}
+            onSignOut={async () => {
+              if (!confirm('Disconnect Dropbox? Your recipes stay safe — you can reconnect anytime.')) return;
+              try { await api.disconnect(); } catch {}
+              localStorage.removeItem(DBX_TOKEN_KEY);
+              localStorage.removeItem(DBX_ACCOUNT_KEY);
               localStorage.removeItem(RECIPES_CACHE_KEY);
               window.location.reload();
             }}
@@ -3677,6 +3880,48 @@
             onSave={saveRecipe}
             onDelete={() => deleteRecipe(openRecipeObj.id)}
             onEdit={() => setEditingId(openRecipeObj.id)}
+            onShare={async () => {
+              try {
+                let videoUrl = null;
+                if (openRecipeObj.videoPath) {
+                  try {
+                    const r = await api.shareLink(openRecipeObj.id);
+                    videoUrl = r.videoUrl || null;
+                  } catch (e) {
+                    console.warn('shared video link failed', e);
+                  }
+                }
+                // Strip large/personal fields before sharing.
+                const sharable = {
+                  title:        openRecipeObj.title,
+                  description:  openRecipeObj.description,
+                  ingredients:  openRecipeObj.ingredients || [],
+                  instructions: openRecipeObj.instructions || [],
+                  prepTime:     openRecipeObj.prepTime,
+                  cookTime:     openRecipeObj.cookTime,
+                  totalTime:    openRecipeObj.totalTime,
+                  servings:     openRecipeObj.servings,
+                  image:        openRecipeObj.image,
+                  author:       openRecipeObj.author,
+                  sourceUrl:    openRecipeObj.sourceUrl,
+                  extractedBy:  openRecipeObj.extractedBy,
+                };
+                const hash = await packShareHash({ recipe: sharable, videoUrl });
+                const shareUrl = window.location.origin + '/#share=' + hash;
+                if (navigator.share) {
+                  try {
+                    await navigator.share({ title: openRecipeObj.title || 'Recipe', url: shareUrl });
+                  } catch {}
+                } else if (navigator.clipboard) {
+                  await navigator.clipboard.writeText(shareUrl);
+                  showToast('Share link copied');
+                } else {
+                  prompt('Copy this share link:', shareUrl);
+                }
+              } catch (e) {
+                showToast('Share failed: ' + e.message, 'error');
+              }
+            }}
             units={units}
             setUnits={setUnits}
           />

@@ -1,15 +1,7 @@
 // api/recipes.js
 //
-// Recipe CRUD + synchronous URL extraction. The video pipeline lives in
-// api/extract-video.js and the Inngest worker — keep this file focused on
-// the simple cases.
-//
-// Routes (all under /api/recipes):
-//   GET    /api/recipes              → list all recipes
-//   GET    /api/recipes?id=xyz       → fetch one recipe
-//   POST   /api/recipes?extract=1    → body {url} → returns parsed recipe (no save)
-//   PUT    /api/recipes?id=xyz       → body recipe → upsert
-//   DELETE /api/recipes?id=xyz       → delete
+// Recipe CRUD + synchronous URL extraction. Auth is per-user: every request
+// must carry the user's Dropbox refresh token in the `x-dropbox-token` header.
 
 import {
   dbxApi,
@@ -20,15 +12,11 @@ import {
 } from '../lib/dropbox.js';
 import { extractFromUrl } from '../lib/recipe-extract.js';
 
-const PASSCODE = process.env.APP_PASSCODE;
-
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const pass = req.headers['x-app-passcode'];
-  if (!PASSCODE || pass !== PASSCODE) {
-    return json(res, 401, { error: 'unauthorized' });
-  }
+  const dbxToken = req.headers['x-dropbox-token'];
+  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
 
   const { method, query } = req;
   const id = (query.id || '').toString().trim();
@@ -45,19 +33,18 @@ export default async function handler(req, res) {
 
     // -------- list --------
     if (method === 'GET' && !id) {
-      const entries = await dbxListFolder('');
+      const entries = await dbxListFolder(dbxToken, '');
       const files = entries.filter(e =>
         (e['.tag'] === 'file' || e.tag === 'file') &&
         typeof e.name === 'string' &&
         e.name.toLowerCase().endsWith('.json') &&
         e.name.toLowerCase().startsWith('recipe-')
       );
-      // Cap concurrent Dropbox reads. Without this, 100+ recipes fan-out to
-      // 100+ parallel HTTPS calls and trip Dropbox's per-app rate limit.
+      // Cap concurrent Dropbox reads — see mapWithLimit comment.
       const recipes = await mapWithLimit(files, 8, async f => {
         try {
           const path = f.path_lower || f.path_display || ('/' + f.name);
-          return await dbxReadJson(path);
+          return await dbxReadJson(dbxToken, path);
         } catch (err) {
           console.error('[list] failed for', f.name, ':', err && err.message);
           return null;
@@ -69,7 +56,7 @@ export default async function handler(req, res) {
     // -------- read one --------
     if (method === 'GET' && id) {
       if (!isSafeId(id)) return json(res, 400, { error: 'bad id' });
-      const recipe = await dbxReadJson(`/recipe-${id}.json`);
+      const recipe = await dbxReadJson(dbxToken, `/recipe-${id}.json`);
       return json(res, 200, recipe);
     }
 
@@ -87,14 +74,14 @@ export default async function handler(req, res) {
         updatedAt: now,
         createdAt: body.createdAt || now,
       };
-      await dbxWriteJson(`/recipe-${id}.json`, recipe);
+      await dbxWriteJson(dbxToken, `/recipe-${id}.json`, recipe);
       return json(res, 200, recipe);
     }
 
     // -------- delete --------
     if (method === 'DELETE' && id) {
       if (!isSafeId(id)) return json(res, 400, { error: 'bad id' });
-      await dbxDelete(`/recipe-${id}.json`);
+      await dbxDelete(dbxToken, `/recipe-${id}.json`);
       return json(res, 200, { ok: true, id });
     }
 
@@ -117,8 +104,7 @@ function isSafeId(id) {
 }
 
 // Concurrency-limited map. Same shape as Promise.all(items.map(fn)), but
-// runs at most `limit` async operations in flight at any time. Used for
-// the recipe-list listing so we don't fan out to N parallel Dropbox reads.
+// runs at most `limit` async operations in flight at any time.
 async function mapWithLimit(items, limit, fn) {
   const results = new Array(items.length);
   let cursor = 0;

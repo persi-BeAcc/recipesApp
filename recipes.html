@@ -913,6 +913,80 @@
     }
     .notes-edit:focus { border-color: var(--accent); }
 
+    /* Segmented control for US ↔ Metric */
+    .units-toggle-row {
+      display: inline-flex;
+      background: var(--bg-sunk);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 2px;
+      margin: 0 0 16px;
+      gap: 2px;
+    }
+    .units-toggle {
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-3);
+      border-radius: 7px;
+      transition: background 160ms, color 160ms, box-shadow 160ms;
+      cursor: pointer;
+      letter-spacing: -0.005em;
+    }
+    .units-toggle.on {
+      background: var(--bg-elev);
+      color: var(--ink);
+      box-shadow: 0 1px 2px oklch(0 0 0 / 0.06);
+    }
+
+    /* Cooking-active banner */
+    .cooking-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+      padding: 7px 13px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin: 0 0 14px;
+      border: 1px solid color-mix(in oklch, var(--accent) 22%, transparent);
+    }
+    .dot-pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: dot-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.45; transform: scale(0.7); }
+    }
+
+    /* "How we extracted this" line in the notes tab */
+    .extract-attribution {
+      margin-top: 18px;
+      padding: 10px 12px;
+      background: var(--bg-sunk);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 11.5px;
+      color: var(--ink-3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .extract-attribution .label {
+      font-weight: 600;
+      color: var(--ink-2);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 10px;
+    }
+
     .stars-row {
       display: flex;
       gap: 4px;
@@ -1389,7 +1463,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <div class="version" id="version">v2026.05.02.7</div>
+  <div class="version" id="version">v2026.05.02.8</div>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1406,7 +1480,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.7';
+  const APP_VERSION       = 'v2026.05.02.8';
   const PASSCODE_KEY      = 'recipes-passcode';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY       = 'recipes-checked-v1';
@@ -1475,6 +1549,25 @@
   }
   function timeLabel(r) {
     return r.totalTime || r.cookTime || r.prepTime || '';
+  }
+
+  // Translate the technical extractedBy id into a human-friendly label so the
+  // user can see at a glance how the recipe was pulled (and whether it was
+  // free, cheap, or used the heavy AI paths).
+  function extractedByLabel(id) {
+    if (!id) return null;
+    const map = {
+      'json-ld':                'Recipe site (structured data)',
+      'json-ld-partial':        'Recipe site (partial data — review)',
+      'claude':                 'Recipe site (AI extraction)',
+      'caption-only':           'Instagram/TikTok caption text',
+      'caption-link (json-ld)': 'Link in caption (structured data)',
+      'caption-link (claude)':  'Link in caption (AI extraction)',
+      'whisper+claude':         'Audio transcript (Whisper) + AI',
+      'whisper+claude+frames':  'Audio + visible text frames + AI',
+      'gemini':                 'Full video (Gemini)',
+    };
+    return map[id] || id;
   }
 
   // ---------- Unit conversion (metric ↔ US) ----------
@@ -2261,6 +2354,13 @@
                 onChange={e => { setNotes(e.target.value); personalDirty.current = true; }}
                 onBlur={persistPersonal}
               />
+
+              {extractedByLabel(recipe.extractedBy) && (
+                <div className="extract-attribution">
+                  <span className="label">Source</span>
+                  <span>{extractedByLabel(recipe.extractedBy)}</span>
+                </div>
+              )}
             </div>
           )}
 

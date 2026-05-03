@@ -207,6 +207,62 @@
       border-color: var(--accent);
     }
 
+    /* Stats sheet */
+    .stats-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    .stat-card {
+      flex: 1;
+      background: var(--bg-sunk);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 10px;
+      text-align: center;
+    }
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--accent-ink);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .stat-label {
+      font-size: 10.5px;
+      color: var(--ink-3);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: 4px;
+      font-weight: 600;
+    }
+    .path-bars { display: flex; flex-direction: column; gap: 14px; margin-bottom: 22px; }
+    .path-bar-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--ink-2);
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+    .path-bar-label .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .path-bar-label .count { color: var(--ink); font-weight: 600; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .path-bar-label .pct   { color: var(--ink-3); font-size: 11.5px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .path-bar-fill {
+      height: 6px;
+      background: var(--bg-sunk);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .path-bar-fill > div {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width 500ms cubic-bezier(.2,.7,.3,1);
+    }
+
     /* Filter sheet sections */
     .filter-section { margin-bottom: 18px; }
     .filter-section-title {
@@ -1528,7 +1584,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <div class="version" id="version">v2026.05.02.12</div>
+  <div class="version" id="version">v2026.05.02.14</div>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1545,7 +1601,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.12';
+  const APP_VERSION       = 'v2026.05.02.14';
   const PASSCODE_KEY      = 'recipes-passcode';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY       = 'recipes-checked-v1';
@@ -1853,7 +1909,7 @@
   }
 
   // ---------- Library ----------
-  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onLongPress, onSwipeAction, onRefresh, refreshing }) {
+  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onOpenStats, onLongPress, onSwipeAction, onRefresh, refreshing }) {
     const [pullY, setPullY] = useState(0);
     const startY = useRef(null);
     const scrollerRef = useRef(null);
@@ -1956,6 +2012,18 @@
                 <path d="M4 6h16M7 12h10M10 18h4" />
               </svg>
               {fCount > 0 && <span className="filter-count">{fCount}</span>}
+            </button>
+            <button
+              className="filter-btn"
+              onClick={onOpenStats}
+              aria-label="Stats"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 21h18" />
+                <rect x="5" y="11" width="3" height="8" />
+                <rect x="11" y="6" width="3" height="13" />
+                <rect x="17" y="14" width="3" height="5" />
+              </svg>
             </button>
           </div>
           {activeChips.length > 0 && (
@@ -2734,6 +2802,109 @@
     );
   }
 
+  // ---------- Stats sheet ----------
+  // Aggregates from already-loaded recipes — no extra API call. Shows what
+  // worked (which extraction paths the user is hitting), how often each
+  // recipe gets cooked, and which tags dominate. Honest dashboard for "is
+  // this app actually useful for me?"
+  function StatsSheet({ recipes, onClose }) {
+    const stats = useMemo(() => {
+      const byPath = {};
+      let cookedTotal = 0;
+      let rated = 0, ratingSum = 0;
+      let withVideo = 0;
+      const tagCounts = {};
+      for (const r of recipes) {
+        const path = r.extractedBy || 'manual';
+        byPath[path] = (byPath[path] || 0) + 1;
+        cookedTotal += (r.cooked || 0);
+        if (r.rating > 0) { rated++; ratingSum += r.rating; }
+        if (r.videoPath) withVideo++;
+        for (const t of r.tags || []) tagCounts[t] = (tagCounts[t] || 0) + 1;
+      }
+      const sortedPaths = Object.entries(byPath).sort((a, b) => b[1] - a[1]);
+      const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const avgRating = rated > 0 ? (ratingSum / rated).toFixed(1) : null;
+      return { total: recipes.length, byPath: sortedPaths, cookedTotal, avgRating, topTags, withVideo };
+    }, [recipes]);
+
+    if (stats.total === 0) {
+      return (
+        <div className="sheet-overlay" onClick={onClose}>
+          <div className="sheet" onClick={e => e.stopPropagation()}>
+            <div className="sheet-grab" />
+            <h2 className="sheet-title">Your kitchen stats</h2>
+            <p className="sheet-sub">Save a recipe first and stats will show up here.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="sheet-overlay" onClick={onClose}>
+        <div className="sheet" onClick={e => e.stopPropagation()}>
+          <div className="sheet-grab" />
+          <h2 className="sheet-title">Your kitchen stats</h2>
+          <p className="sheet-sub">A quick look at what's working in your library.</p>
+
+          <div className="stats-row">
+            <div className="stat-card">
+              <div className="stat-value">{stats.total}</div>
+              <div className="stat-label">Recipes</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{stats.cookedTotal}</div>
+              <div className="stat-label">Times cooked</div>
+            </div>
+            {stats.avgRating ? (
+              <div className="stat-card">
+                <div className="stat-value">{stats.avgRating}<span style={{fontSize: 16, marginLeft: 2}}> ★</span></div>
+                <div className="stat-label">Avg rating</div>
+              </div>
+            ) : (
+              <div className="stat-card">
+                <div className="stat-value">{stats.withVideo}</div>
+                <div className="stat-label">With video</div>
+              </div>
+            )}
+          </div>
+
+          <h3 className="filter-section-title">How recipes were extracted</h3>
+          <div className="path-bars">
+            {stats.byPath.map(([path, count]) => {
+              const pct = Math.round(count * 100 / stats.total);
+              return (
+                <div key={path}>
+                  <div className="path-bar-label">
+                    <span className="name">{extractedByLabel(path) || path}</span>
+                    <span className="count">{count}</span>
+                    <span className="pct">{pct}%</span>
+                  </div>
+                  <div className="path-bar-fill">
+                    <div style={{ width: pct + '%' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {stats.topTags.length > 0 && (
+            <>
+              <h3 className="filter-section-title">Top tags</h3>
+              <div className="chip-row">
+                {stats.topTags.map(([tag, count]) => (
+                  <span key={tag} className="chip">
+                    {tag} <b style={{marginLeft: 4, color: 'var(--ink)'}}>{count}</b>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ---------- Quick actions (long press) ----------
   function QuickActions({ recipe, onClose, onOpen, onToggleFav, onDelete }) {
     if (!recipe) return null;
@@ -3206,6 +3377,7 @@
     const [openId, setOpenId] = useState(null);
     const [showImport, setShowImport] = useState(false);
     const [showFilter, setShowFilter] = useState(false);
+    const [showStats, setShowStats] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [longPressed, setLongPressed] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -3296,6 +3468,7 @@
           onOpen={openRecipe}
           onOpenImport={() => setShowImport(true)}
           onOpenFilter={() => setShowFilter(true)}
+          onOpenStats={() => setShowStats(true)}
           onLongPress={(r) => setLongPressed(r)}
           onSwipeAction={(r, action) => {
             if (action === 'favorite') toggleFavorite(r.id);
@@ -3311,6 +3484,13 @@
             filters={filters}
             setFilters={setFilters}
             onClose={() => setShowFilter(false)}
+          />
+        )}
+
+        {showStats && (
+          <StatsSheet
+            recipes={recipes}
+            onClose={() => setShowStats(false)}
           />
         )}
 

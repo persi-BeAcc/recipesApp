@@ -25,6 +25,15 @@ import {
   extractFromText,
 } from '../lib/recipe-extract.js';
 
+// Required env vars for the worker — fail fast at module init so a missing
+// signing key doesn't leave the /api/inngest endpoint reachable unauthenticated.
+if (!process.env.INNGEST_EVENT_KEY) {
+  throw new Error('INNGEST_EVENT_KEY env var is required');
+}
+if (!process.env.INNGEST_SIGNING_KEY) {
+  throw new Error('INNGEST_SIGNING_KEY env var is required (rejects unsigned events)');
+}
+
 const inngest = new Inngest({
   id: 'recipes-app',
   eventKey: process.env.INNGEST_EVENT_KEY,

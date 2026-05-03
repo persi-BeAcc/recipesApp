@@ -52,17 +52,17 @@ export default async function handler(req, res) {
         e.name.toLowerCase().endsWith('.json') &&
         e.name.toLowerCase().startsWith('recipe-')
       );
-      const recipes = await Promise.all(
-        files.map(async f => {
-          try {
-            const path = f.path_lower || f.path_display || ('/' + f.name);
-            return await dbxReadJson(path);
-          } catch (err) {
-            console.error('[list] failed for', f.name, ':', err && err.message);
-            return null;
-          }
-        })
-      );
+      // Cap concurrent Dropbox reads. Without this, 100+ recipes fan-out to
+      // 100+ parallel HTTPS calls and trip Dropbox's per-app rate limit.
+      const recipes = await mapWithLimit(files, 8, async f => {
+        try {
+          const path = f.path_lower || f.path_display || ('/' + f.name);
+          return await dbxReadJson(path);
+        } catch (err) {
+          console.error('[list] failed for', f.name, ':', err && err.message);
+          return null;
+        }
+      });
       return json(res, 200, { recipes: recipes.filter(Boolean) });
     }
 
@@ -114,6 +114,22 @@ function json(res, status, body) {
 
 function isSafeId(id) {
   return /^[a-zA-Z0-9_-]{1,64}$/.test(id);
+}
+
+// Concurrency-limited map. Same shape as Promise.all(items.map(fn)), but
+// runs at most `limit` async operations in flight at any time. Used for
+// the recipe-list listing so we don't fan out to N parallel Dropbox reads.
+async function mapWithLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: limit }, async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  }));
+  return results;
 }
 
 async function readJsonBody(req) {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#fbf7f1" />
+  <meta name="theme-color" content="#e8eedc" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Recipes" />
@@ -11,43 +11,53 @@
   <link rel="apple-touch-icon" href="/icon-192.png" />
   <title>Recipes</title>
 
-  <!-- Magazine-quality typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <style>
+    /* ---------- THEME (Thyme — soft herb green · linen) ---------- */
     :root {
-      --bg:           #fbf7f1;
-      --surface:      #ffffff;
-      --surface-2:    #f4ede1;
-      --ink:          #1a1410;
-      --ink-2:        #4d3f33;
-      --muted:        #8a7a6c;
-      --line:         #ece2d2;
-      --line-2:       #e0d3bd;
-      --accent:       #a13a13;   /* terracotta */
-      --accent-ink:   #ffffff;
-      --accent-soft:  #f6e4d8;
-      --sage:         #5b6f4e;
-      --sage-soft:    #e8ede0;
-      --amber:        #d97706;
-      --shadow:       0 1px 2px rgba(60,40,20,.04), 0 8px 24px rgba(60,40,20,.06);
-      --radius:       14px;
-      --radius-sm:    10px;
+      --font-display: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-ui:      'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-mono:    ui-monospace, 'SF Mono', Menlo, monospace;
+
+      --header-bg:    oklch(0.74 0.040 125);
+      --header-ink:   oklch(0.22 0.025 125);
+      --header-ink-2: oklch(0.36 0.022 125);
+      --header-line:  oklch(0.62 0.045 125);
+
+      --accent:       oklch(0.42 0.058 125);
+      --accent-soft:  oklch(0.93 0.022 125);
+      --accent-ink:   oklch(0.34 0.058 125);
+
+      --bg:        oklch(0.975 0.010 90);
+      --bg-elev:   oklch(0.995 0.005 90);
+      --bg-sunk:   oklch(0.95  0.012 90);
+      --ink:       oklch(0.22 0.014 85);
+      --ink-2:     oklch(0.44 0.012 85);
+      --ink-3:     oklch(0.62 0.010 85);
+      --line:      oklch(0.90 0.010 85);
+      --line-strong: oklch(0.83 0.012 85);
+
+      --shadow-card:  0 1px 2px oklch(0.20 0.02 70 / 0.04), 0 1px 3px oklch(0.20 0.02 70 / 0.06);
+      --shadow-fab:   0 6px 18px oklch(0 0 0 / 0.18), 0 2px 4px oklch(0 0 0 / 0.10);
+      --shadow-sheet: 0 -8px 40px oklch(0.20 0.02 70 / 0.16);
+
+      --radius-card:       14px;
+      --radius-card-tight: 12px;
+      --radius-pill:       999px;
+
+      --gap: 12px;
     }
 
     * { box-sizing: border-box; }
     html, body {
-      margin: 0;
-      padding: 0;
+      margin: 0; padding: 0;
+      font-family: var(--font-ui);
       background: var(--bg);
       color: var(--ink);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-      font-size: 16px;
-      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
       text-rendering: optimizeLegibility;
       overscroll-behavior: none;
       touch-action: pan-y;
@@ -56,492 +66,1073 @@
     body {
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; padding: 0; }
+    input, textarea { font-family: inherit; }
 
-    h1, h2, h3 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
-    h1 { font-size: clamp(28px, 4vw, 44px); line-height: 1.1; }
-    h2 { font-size: clamp(22px, 2.6vw, 30px); line-height: 1.15; }
-    h3 { font-size: 18px; line-height: 1.25; }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    button { font-family: inherit; font-size: inherit; }
-
-    .app { max-width: 1200px; margin: 0 auto; padding: 18px 18px 80px; }
-    @media (min-width: 768px) { .app { padding: 28px 32px 80px; } }
-
-    /* ---------- Top bar ---------- */
-    .topbar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 0 18px;
-      flex-wrap: wrap;
-    }
-    .brand {
-      font-family: 'Fraunces', serif;
-      font-weight: 600;
-      font-size: 26px;
-      letter-spacing: -0.02em;
-      color: var(--ink);
-      cursor: pointer;
-      user-select: none;
-      flex-shrink: 0;
-    }
-    .brand .dot { color: var(--accent); }
-    .topbar-spacer { flex: 1; }
-    .search {
-      position: relative;
-      flex: 1;
-      min-width: 180px;
-      max-width: 420px;
-    }
-    .search input {
+    /* ---------- APP SHELL ---------- */
+    .app-root {
       width: 100%;
-      padding: 11px 14px 11px 38px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--surface);
-      font-size: 15px;
+      max-width: 720px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: var(--bg);
       color: var(--ink);
-      outline: none;
-      transition: border-color .15s, box-shadow .15s;
-    }
-    .search input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
-    .search-icon {
-      position: absolute;
-      left: 13px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--muted);
-      pointer-events: none;
-    }
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 11px 18px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: var(--surface);
-      color: var(--ink);
-      cursor: pointer;
-      font-weight: 500;
-      transition: transform .05s, border-color .15s, background .15s;
-      white-space: nowrap;
-    }
-    .btn:active { transform: scale(0.98); }
-    .btn-primary {
-      background: var(--accent);
-      color: var(--accent-ink);
-      border-color: var(--accent);
-    }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
-    .btn-ghost:hover { background: var(--surface-2); }
-    .btn-danger { color: #b1361b; border-color: var(--line); background: var(--surface); }
-    .btn-danger:hover { background: #fdf0eb; }
-
-    /* ---------- Tag pills ---------- */
-    .tag-row {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 4px 0 14px;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .tag-row::-webkit-scrollbar { display: none; }
-    .tag {
-      flex-shrink: 0;
-      padding: 6px 12px;
-      border-radius: 999px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      color: var(--ink-2);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background .15s, border-color .15s, color .15s;
-      user-select: none;
-    }
-    .tag.active {
-      background: var(--ink);
-      color: #fff;
-      border-color: var(--ink);
-    }
-    .tag-static {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: var(--sage-soft);
-      color: var(--sage);
-      font-size: 12px;
-      font-weight: 600;
-      margin: 0 6px 6px 0;
-    }
-
-    /* ---------- Recipe grid ---------- */
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 22px;
-    }
-    @media (min-width: 600px)  { .grid { grid-template-columns: repeat(2, 1fr); gap: 24px; } }
-    @media (min-width: 1000px) { .grid { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
-
-    .card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      overflow: hidden;
-      cursor: pointer;
-      box-shadow: var(--shadow);
-      transition: transform .12s ease, box-shadow .12s ease;
+      position: relative;
+      overflow-x: hidden;
       display: flex;
       flex-direction: column;
     }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(60,40,20,.05), 0 16px 36px rgba(60,40,20,.10); }
-    .card-image {
-      width: 100%;
-      aspect-ratio: 4 / 3;
-      object-fit: cover;
-      background: var(--surface-2);
-      display: block;
+    @media (min-width: 720px) {
+      .app-root { box-shadow: 0 0 60px oklch(0 0 0 / 0.04); }
     }
-    .card-image-placeholder {
-      width: 100%;
-      aspect-ratio: 4 / 3;
-      background:
-        radial-gradient(circle at 30% 30%, #f6e4d8, transparent 50%),
-        radial-gradient(circle at 70% 70%, #e8ede0, transparent 50%),
-        var(--surface-2);
+
+    .screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+    /* ---------- HEADER ---------- */
+    .lib-header {
+      padding: 14px 16px;
+      background: var(--header-bg);
+      z-index: 5;
+      position: sticky;
+      top: 0;
+      border-bottom: 1px solid var(--header-line);
+    }
+    .brand-row {
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-family: 'Fraunces', serif;
-      font-size: 64px;
-      color: var(--accent);
-      opacity: .6;
+      justify-content: space-between;
+      margin-bottom: 12px;
     }
-    .card-body { padding: 16px 18px 18px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
-    .card-title { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600; color: var(--ink); line-height: 1.2; }
-    .card-meta { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .card-meta-dot { width: 3px; height: 3px; background: var(--muted); border-radius: 50%; }
-    .card-tags { margin-top: auto; padding-top: 8px; }
+    .brand {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--header-ink);
+    }
+    .brand .dot { color: var(--accent); }
+    .header-count {
+      font-size: 12px;
+      color: var(--header-ink-2);
+      font-weight: 500;
+    }
+    .search-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .search-input {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-sunk);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 12px;
+      height: 38px;
+      transition: border-color 160ms, background 160ms;
+      min-width: 0;
+    }
+    .search-input:focus-within {
+      border-color: var(--accent);
+      background: var(--bg-elev);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 14%, transparent);
+    }
+    .search-input svg { color: var(--ink-3); flex-shrink: 0; }
+    .search-input input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 14px;
+      color: var(--ink);
+      min-width: 0;
+    }
+    .search-input input::placeholder { color: var(--ink-3); }
+    .search-clear {
+      font-size: 16px;
+      color: var(--ink-3);
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--line);
+      flex-shrink: 0;
+    }
 
-    /* ---------- Detail view ---------- */
-    .detail-back {
+    /* Active filter / tag chips below search */
+    .active-chips {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+    }
+    .active-chips::-webkit-scrollbar { display: none; }
+
+    /* ---------- CHIPS ---------- */
+    .chip {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      color: var(--ink-2);
+      padding: 6px 11px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-elev);
+      border: 1px solid var(--line-strong);
+      font-size: 12.5px;
       font-weight: 500;
+      color: var(--ink-2);
+      white-space: nowrap;
+      transition: background 140ms, color 140ms, transform 100ms, border-color 140ms;
+      flex-shrink: 0;
+      animation: chip-in 220ms cubic-bezier(.2,.7,.3,1) both;
+      letter-spacing: -0.005em;
       cursor: pointer;
-      padding: 6px 0;
-      margin-bottom: 16px;
-      background: none;
-      border: none;
     }
-    .detail-back:hover { color: var(--accent); }
-    .detail-hero {
-      width: 100%;
-      max-height: 380px;
-      aspect-ratio: 16 / 9;
-      object-fit: cover;
-      border-radius: var(--radius);
-      background: var(--surface-2);
-      margin-bottom: 26px;
+    .chip:active { transform: scale(0.96); }
+    .chip.on,
+    .chip-active {
+      background: var(--accent);
+      color: oklch(0.99 0 0);
+      border-color: var(--accent);
     }
-    .detail-title {
-      margin-bottom: 8px;
+    .chip-x {
+      font-size: 13px;
+      line-height: 1;
+      margin-left: 2px;
+      opacity: 0.6;
     }
-    .detail-source {
-      color: var(--muted);
-      font-size: 14px;
-      margin-bottom: 14px;
+    .chip-clear {
+      background: transparent;
+      border: 1px dashed var(--line-strong);
+      color: var(--ink-3);
     }
-    .detail-source a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line-2); }
-    .detail-meta-row {
-      display: flex;
-      gap: 24px;
-      flex-wrap: wrap;
-      padding: 14px 0;
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
-      margin-bottom: 26px;
+    @keyframes chip-in {
+      from { opacity: 0; transform: translateY(3px); }
+      to { opacity: 1; transform: translateY(0); }
     }
-    .meta-stat { display: flex; flex-direction: column; gap: 2px; }
-    .meta-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
-    .meta-stat-value { font-family: 'Fraunces', serif; font-size: 18px; color: var(--ink); }
 
-    .detail-body {
+    /* ---------- GRID ---------- */
+    .lib-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 14px 14px 100px;
+      position: relative;
+      -webkit-overflow-scrolling: touch;
+    }
+    .grid {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 36px;
+      gap: var(--gap);
+      grid-template-columns: 1fr 1fr;
     }
-    @media (min-width: 880px) {
-      .detail-body { grid-template-columns: minmax(240px, 320px) 1fr; gap: 56px; }
+    @media (min-width: 600px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 900px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+
+    .grid-item {
+      animation: card-in 320ms cubic-bezier(.2,.7,.3,1) both;
+    }
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    .section-label {
-      font-family: 'Fraunces', serif;
-      font-size: 22px;
-      font-weight: 600;
-      color: var(--ink);
-      margin: 0 0 14px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid var(--ink);
-    }
-
-    .ingredient-list { list-style: none; padding: 0; margin: 0; }
-    .ingredient-list li {
-      padding: 10px 0;
-      border-bottom: 1px solid var(--line);
+    /* ---------- RECIPE CARD ---------- */
+    .recipe-card {
+      position: relative;
+      background: var(--bg-elev);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      border: 1px solid var(--line);
       cursor: pointer;
       user-select: none;
+      transition: transform 160ms, box-shadow 160ms;
       display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      transition: opacity .15s;
-      font-size: 15px;
-      line-height: 1.45;
+      flex-direction: column;
     }
-    .ingredient-list li:last-child { border-bottom: none; }
-    .ingredient-check {
-      flex-shrink: 0;
-      width: 18px;
-      height: 18px;
-      border: 1.5px solid var(--line-2);
-      border-radius: 4px;
-      margin-top: 2px;
+    .recipe-card:active { transform: scale(0.985); }
+    .recipe-card-media {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--bg-sunk);
+      overflow: hidden;
+    }
+    .recipe-card-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .recipe-card-body {
+      padding: 10px 12px 12px;
+    }
+    .recipe-card-title {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.25;
+      margin: 0 0 4px;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      text-wrap: pretty;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 2.5em;
+    }
+    .recipe-card-meta {
       display: flex;
       align-items: center;
-      justify-content: center;
-      transition: background .15s, border-color .15s;
+      gap: 8px;
+      flex-wrap: nowrap;
     }
-    .ingredient-list li.checked { opacity: 0.4; text-decoration: line-through; }
-    .ingredient-list li.checked .ingredient-check {
+    .meta-sep {
+      width: 2px;
+      height: 2px;
+      border-radius: 50%;
+      background: var(--ink-3);
+      opacity: 0.5;
+      flex-shrink: 0;
+    }
+
+    /* Photographic placeholder (no image) */
+    .recipe-img-placeholder {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background:
+        repeating-linear-gradient(45deg, oklch(0.90 0 0) 0 3px, oklch(0.82 0 0 / 0.55) 3px 6px),
+        linear-gradient(to bottom, transparent, oklch(0.65 0 0 / 0.32));
+    }
+    .recipe-img-letter {
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      font-family: var(--font-display);
+      font-size: 42px;
+      font-weight: 600;
+      color: oklch(0.45 0 0);
+      letter-spacing: -0.02em;
+    }
+    .recipe-img-caption {
+      position: absolute;
+      bottom: 6px;
+      left: 8px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: oklch(0.20 0.02 70 / 0.45);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .fav-pill {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: oklch(0.99 0 0 / 0.95);
+      color: var(--accent);
+      display: grid;
+      place-items: center;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .source-corner {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: oklch(0.99 0 0 / 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 6px;
+      padding: 3px 7px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--ink-2);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ---------- BADGES ---------- */
+    .source-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink-2);
+    }
+    .source-badge.source-lg {
+      font-size: 12.5px;
+      color: oklch(0.99 0 0);
+    }
+    .source-ig { color: oklch(0.55 0.18 5); }
+    .source-tt { color: oklch(0.20 0.020 200); }
+    .source-web { color: oklch(0.50 0.10 240); }
+    .source-host { color: var(--ink-2); font-weight: 500; }
+    .source-lg .source-host { color: oklch(0.99 0 0); }
+
+    .time-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      color: var(--ink-2);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------- FAB ---------- */
+    .fab {
+      position: fixed;
+      right: max(18px, calc((100vw - 720px) / 2 + 18px));
+      bottom: calc(24px + env(safe-area-inset-bottom));
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: oklch(0.99 0 0);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 4px 14px color-mix(in oklch, var(--accent) 32%, transparent), 0 2px 4px oklch(0 0 0 / 0.10);
+      z-index: 20;
+      transition: transform 200ms cubic-bezier(.2,.9,.3,1.4);
+    }
+    .fab:active { transform: scale(0.92); }
+
+    /* ---------- EMPTY ---------- */
+    .empty {
+      text-align: center;
+      padding: 80px 24px;
+      color: var(--ink-3);
+    }
+    .empty-emoji { font-size: 36px; margin-bottom: 12px; opacity: 0.6; }
+    .empty h3 {
+      font-family: var(--font-display);
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0 0 4px;
+      letter-spacing: -0.01em;
+    }
+    .empty p { margin: 0 0 12px; font-size: 13px; }
+    .btn-text { color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 12px; }
+
+    /* ---------- DETAIL ---------- */
+    .detail-screen {
+      position: fixed;
+      inset: 0;
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--bg);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: detail-in 280ms cubic-bezier(.2,.7,.3,1);
+    }
+    @keyframes detail-in {
+      from { transform: translateY(16px); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+
+    .detail-hero {
+      position: relative;
+      width: 100%;
+      flex-shrink: 0;
+      overflow: hidden;
+      aspect-ratio: 1.1;
+      max-height: 60vh;
+      background: var(--bg-sunk);
+    }
+    .detail-hero img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .detail-hero-fade {
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 60%;
+      background: linear-gradient(to bottom, transparent, oklch(0.16 0.02 70 / 0.62));
+      pointer-events: none;
+    }
+    .detail-close, .detail-fav {
+      position: absolute;
+      top: calc(16px + env(safe-area-inset-top));
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: oklch(0.99 0 0 / 0.95);
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: transform 160ms;
+      z-index: 3;
+    }
+    .detail-close { left: 16px; }
+    .detail-fav   { right: 16px; }
+    .detail-close:active, .detail-fav:active { transform: scale(0.9); }
+    .detail-fav.on { color: var(--accent); }
+
+    .detail-source-row {
+      position: absolute;
+      bottom: 18px;
+      left: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 2;
+    }
+    .detail-author {
+      color: oklch(0.99 0 0);
+      font-size: 12.5px;
+      font-weight: 500;
+      text-shadow: 0 1px 6px oklch(0 0 0 / 0.5);
+    }
+
+    .detail-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 22px 22px 0;
+      background: var(--bg);
+      border-radius: 18px 18px 0 0;
+      margin-top: -18px;
+      position: relative;
+      z-index: 2;
+      scrollbar-width: none;
+    }
+    .detail-body::-webkit-scrollbar { display: none; }
+    .detail-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      margin: 4px 0 12px;
+      text-wrap: pretty;
+    }
+    .detail-description {
+      color: var(--ink-2);
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0 0 16px;
+    }
+    .detail-meta-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .meta-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-sunk);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-2);
+    }
+    .meta-pill-icon { font-size: 12px; }
+    .meta-pill-label { text-transform: capitalize; }
+
+    .tag-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .tag {
+      font-size: 11px;
+      color: var(--ink-2);
+      background: var(--bg-sunk);
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-weight: 500;
+      border: 1px solid var(--line);
+    }
+    .tag-accent {
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+      border-color: transparent;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 22px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 14px;
+    }
+    .tab {
+      padding: 12px 0;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--ink-3);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 160ms;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      letter-spacing: -0.005em;
+    }
+    .tab.on { color: var(--ink); border-bottom-color: var(--ink); }
+    .tab-count {
+      font-size: 10.5px;
+      background: var(--bg-sunk);
+      padding: 1px 6px;
+      border-radius: var(--radius-pill);
+      font-weight: 600;
+      color: var(--ink-3);
+    }
+    .tab.on .tab-count { background: var(--accent-soft); color: var(--accent-ink); }
+
+    .ingredient-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 24px;
+    }
+    .ing-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      transition: opacity 200ms;
+    }
+    .ing-row.checked { opacity: 0.4; }
+    .ing-row.checked .ing-text { text-decoration: line-through; }
+    .ing-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      border: 1.5px solid var(--line-strong);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: oklch(0.99 0 0);
+      transition: background 160ms, border-color 160ms;
+    }
+    .ing-row.checked .ing-check {
       background: var(--accent);
       border-color: var(--accent);
     }
-    .ingredient-list li.checked .ingredient-check::after {
-      content: '✓'; color: #fff; font-size: 12px; font-weight: 700;
-    }
+    .ing-text { font-size: 14px; line-height: 1.5; color: var(--ink); }
 
-    .step-list { list-style: none; padding: 0; margin: 0; counter-reset: step; }
-    .step-list li {
-      position: relative;
-      padding: 0 0 20px 48px;
-      font-size: 16px;
-      line-height: 1.6;
-      color: var(--ink-2);
-      counter-increment: step;
+    .steps-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 24px;
     }
-    .step-list li::before {
-      content: counter(step);
-      position: absolute;
-      left: 0; top: -2px;
-      width: 32px; height: 32px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: #fff;
-      font-family: 'Fraunces', serif;
-      font-weight: 600;
-      font-size: 16px;
+    .step-row {
       display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .step-list li.section-heading {
-      padding-left: 0;
-      font-family: 'Fraunces', serif;
-      font-size: 18px;
-      color: var(--ink);
-      font-weight: 600;
-      margin: 8px 0 12px;
-    }
-    .step-list li.section-heading::before { display: none; }
-
-    /* ---------- Personal block (notes + rating) ---------- */
-    .personal {
-      margin-top: 40px;
-      padding: 24px;
-      background: var(--surface);
-      border-radius: var(--radius);
+      gap: 12px;
+      padding: 13px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 6px;
+      background: var(--bg-sunk);
+      transition: background 200ms;
       border: 1px solid var(--line);
     }
-    .stars { display: flex; gap: 4px; margin-bottom: 14px; }
+    .step-row.active {
+      background: var(--accent-soft);
+      border-color: transparent;
+    }
+    .step-row.section-heading {
+      background: transparent;
+      border: none;
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-2);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 10px 0 4px;
+      cursor: default;
+    }
+    .step-row.section-heading .step-num { display: none; }
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--bg-elev);
+      color: var(--ink-2);
+      font-weight: 600;
+      font-size: 12px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      border: 1px solid var(--line);
+    }
+    .step-row.active .step-num {
+      background: var(--accent);
+      color: oklch(0.99 0 0);
+      border-color: var(--accent);
+    }
+    .step-text { font-size: 14px; line-height: 1.55; color: var(--ink); }
+
+    .notes-block {
+      background: var(--accent-soft);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13.5px;
+      line-height: 1.45;
+      color: var(--accent-ink);
+      margin-bottom: 18px;
+      white-space: pre-wrap;
+    }
+    .notes-edit {
+      width: 100%;
+      min-height: 90px;
+      background: var(--bg-elev);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 14px;
+      color: var(--ink);
+      resize: vertical;
+      outline: none;
+      font-family: inherit;
+    }
+    .notes-edit:focus { border-color: var(--accent); }
+
+    .stars-row {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
     .star {
       cursor: pointer;
       width: 28px; height: 28px;
-      color: var(--line-2);
-      transition: color .12s, transform .08s;
+      color: var(--line-strong);
+      transition: color 120ms, transform 80ms;
     }
     .star:hover { transform: scale(1.1); }
-    .star.filled { color: var(--amber); }
-    .notes-input {
-      width: 100%;
-      min-height: 80px;
-      padding: 12px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      font-family: inherit;
-      font-size: 15px;
-      color: var(--ink);
-      background: var(--bg);
-      resize: vertical;
-      outline: none;
-    }
-    .notes-input:focus { border-color: var(--accent); }
+    .star.filled { color: oklch(0.78 0.14 80); }
 
-    /* ---------- Add flow ---------- */
-    .add-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      padding: 28px;
-      box-shadow: var(--shadow);
+    .detail-actions-bar {
+      position: sticky;
+      bottom: 0;
+      padding: 12px 18px calc(18px + env(safe-area-inset-bottom));
+      background: linear-gradient(to top, var(--bg) 70%, transparent);
+      display: flex;
+      gap: 10px;
+      z-index: 3;
+    }
+    .detail-actions-bar .ghost-btn {
+      flex: 0 0 auto;
+      padding: 0 16px;
+    }
+    .detail-actions-bar .danger-btn {
+      flex: 0 0 auto;
+      padding: 0 16px;
+      color: oklch(0.50 0.16 25);
+      background: var(--bg-elev);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      height: 46px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    /* Source embed (Instagram / TikTok) */
+    .social-embed {
+      margin: 0 0 18px;
+    }
+
+    /* ---------- SHEETS ---------- */
+    .sheet-overlay {
+      position: fixed;
+      inset: 0;
       max-width: 720px;
       margin: 0 auto;
+      background: oklch(0.16 0.02 70 / 0.42);
+      z-index: 40;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      animation: overlay-in 220ms ease both;
+      backdrop-filter: blur(2px);
     }
+    @keyframes overlay-in {
+      from { background: oklch(0.16 0.02 70 / 0); }
+      to   { background: oklch(0.16 0.02 70 / 0.42); }
+    }
+
+    .sheet {
+      width: 100%;
+      background: var(--bg);
+      border-radius: 18px 18px 0 0;
+      padding: 8px 22px calc(24px + env(safe-area-inset-bottom));
+      box-shadow: var(--shadow-sheet);
+      max-height: 88vh;
+      overflow-y: auto;
+      animation: sheet-in 280ms cubic-bezier(.2,.7,.3,1) both;
+      scrollbar-width: none;
+    }
+    .sheet::-webkit-scrollbar { display: none; }
+    @keyframes sheet-in {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+    .sheet-grab {
+      width: 32px;
+      height: 4px;
+      background: var(--line-strong);
+      border-radius: 4px;
+      margin: 0 auto 16px;
+    }
+    .sheet-title {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 4px;
+    }
+    .sheet-sub {
+      margin: 0 0 18px;
+      color: var(--ink-3);
+      font-size: 13.5px;
+      line-height: 1.4;
+    }
+
+    /* ---------- IMPORT SHEET ---------- */
     .url-input {
-      width: 100%;
-      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-sunk);
       border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      font-size: 15px;
-      color: var(--ink);
-      background: var(--bg);
-      outline: none;
-      font-family: inherit;
+      border-radius: 10px;
+      padding: 0 14px;
+      height: 46px;
+      margin-bottom: 12px;
+      transition: border-color 200ms;
     }
-    .url-input:focus { border-color: var(--accent); }
-    .field { margin-bottom: 16px; }
-    .field-label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
-    .field-input, .field-textarea {
-      width: 100%;
-      padding: 11px 13px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: var(--bg);
-      font-family: inherit;
-      font-size: 15px;
-      color: var(--ink);
+    .url-input:focus-within { border-color: var(--accent); }
+    .url-input svg { color: var(--ink-3); flex-shrink: 0; }
+    .url-input input {
+      flex: 1;
+      border: none;
+      background: transparent;
       outline: none;
+      font-size: 13.5px;
+      font-family: var(--font-mono);
+      color: var(--ink);
+      min-width: 0;
     }
-    .field-textarea { min-height: 120px; resize: vertical; }
-    .field-input:focus, .field-textarea:focus { border-color: var(--accent); }
 
-    /* ---------- Empty state ---------- */
-    .empty {
+    .source-detect-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .detect-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-sunk);
+      border: 1px dashed var(--line-strong);
+      font-size: 11.5px;
+      color: var(--ink-3);
+      font-weight: 500;
+      transition: all 200ms;
+    }
+    .detect-pill.on {
+      background: var(--accent);
+      color: oklch(0.99 0 0);
+      border-color: var(--accent);
+      border-style: solid;
+    }
+
+    .analysis-row {
+      margin-bottom: 18px;
+    }
+    .analysis-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ink-3);
+      font-weight: 600;
+      margin: 0 0 10px;
+    }
+    .analysis-options {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .primary-btn {
+      width: 100%;
+      height: 46px;
+      background: var(--accent);
+      color: oklch(0.99 0 0);
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      transition: transform 160ms, opacity 160ms;
+    }
+    .primary-btn:active { transform: scale(0.98); }
+    .primary-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .ghost-btn {
+      height: 46px;
+      background: var(--bg-elev);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 0 22px;
+    }
+
+    .detecting {
       text-align: center;
-      padding: 60px 20px;
-      color: var(--muted);
+      padding: 24px 0;
     }
-    .empty-art {
-      font-family: 'Fraunces', serif;
-      font-size: 96px;
-      color: var(--accent);
-      opacity: 0.25;
-      margin-bottom: 16px;
-      line-height: 1;
+    .detect-orbit {
+      position: relative;
+      width: 84px;
+      height: 84px;
+      margin: 0 auto 22px;
+      display: grid;
+      place-items: center;
     }
-    .empty h2 { color: var(--ink); margin-bottom: 8px; }
-    .empty p { font-size: 15px; max-width: 420px; margin: 0 auto 20px; }
+    .orbit-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      border-right-color: transparent;
+      border-top-color: transparent;
+      animation: spin 1.4s linear infinite;
+    }
+    .orbit-ring.r2 {
+      inset: 12px;
+      border-color: var(--line-strong);
+      border-bottom-color: transparent;
+      animation-duration: 2s;
+      animation-direction: reverse;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .orbit-emoji { font-size: 26px; opacity: 0.7; }
+    .detect-steps {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      text-align: left;
+      display: inline-block;
+    }
+    .d-step {
+      font-size: 12.5px;
+      padding: 4px 0;
+      color: var(--ink-3);
+    }
+    .d-step.done { color: var(--ink); }
+    .d-step.done::before { content: '✓ '; color: var(--accent); }
 
-    /* ---------- Passcode gate ---------- */
+    .preview-card {
+      display: flex;
+      gap: 14px;
+      background: var(--bg-sunk);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 18px;
+      border: 1px solid var(--line);
+    }
+    .preview-media {
+      width: 84px;
+      height: 84px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg-elev);
+    }
+    .preview-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .preview-body { flex: 1; min-width: 0; }
+    .preview-body h3 {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .preview-stats {
+      display: flex;
+      gap: 12px;
+      font-size: 11.5px;
+      color: var(--ink-3);
+    }
+    .preview-stats b { color: var(--ink); font-weight: 600; }
+
+    .sheet-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* ---------- PASSCODE GATE ---------- */
     .gate {
-      min-height: 100vh;
+      position: fixed;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
+      background: var(--bg);
+      z-index: 100;
     }
     .gate-card {
-      background: var(--surface);
-      border-radius: var(--radius);
+      background: var(--bg-elev);
+      border-radius: 18px;
       padding: 36px 32px;
       width: 100%;
       max-width: 380px;
-      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
       text-align: center;
+      box-shadow: var(--shadow-card);
     }
-    .gate-card .brand { font-size: 32px; margin-bottom: 6px; cursor: default; }
-    .gate-card p { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+    .gate-card .brand {
+      font-size: 28px;
+      margin-bottom: 6px;
+      color: var(--ink);
+    }
+    .gate-card p { color: var(--ink-3); margin: 0 0 20px; font-size: 14px; }
     .gate-card input {
       width: 100%;
       padding: 12px 14px;
       border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
+      border-radius: 10px;
       font-size: 16px;
       text-align: center;
       letter-spacing: 0.1em;
       outline: none;
-      background: var(--bg);
+      background: var(--bg-sunk);
+      color: var(--ink);
       margin-bottom: 12px;
     }
     .gate-card input:focus { border-color: var(--accent); }
 
-    /* ---------- Misc ---------- */
+    /* ---------- TOAST ---------- */
+    .toast {
+      position: fixed;
+      bottom: calc(100px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: var(--bg);
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 8px 24px oklch(0 0 0 / 0.2);
+      z-index: 100;
+      max-width: 90vw;
+      animation: toast-in 220ms ease both;
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translate(-50%, 8px); }
+      to   { opacity: 1; transform: translate(-50%, 0); }
+    }
+    .toast.error { background: oklch(0.50 0.16 25); color: oklch(0.99 0 0); }
+
+    /* ---------- ERROR BOX ---------- */
+    .error-box {
+      background: oklch(0.96 0.04 25);
+      border: 1px solid oklch(0.84 0.10 25);
+      color: oklch(0.40 0.16 25);
+      padding: 11px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+
+    /* ---------- VERSION CHIP ---------- */
+    .version {
+      position: fixed;
+      bottom: max(6px, env(safe-area-inset-bottom));
+      left: 8px;
+      font-size: 9px;
+      color: var(--line-strong);
+      letter-spacing: 0.05em;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* ---------- SPINNER ---------- */
     .spinner {
       display: inline-block;
-      width: 16px; height: 16px;
-      border: 2px solid var(--accent-soft);
+      width: 14px; height: 14px;
+      border: 2px solid color-mix(in oklch, var(--accent) 30%, transparent);
       border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       vertical-align: middle;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--ink);
-      color: #fff;
-      padding: 12px 18px;
-      border-radius: 999px;
+    .spinner.on-accent {
+      border-color: oklch(1 0 0 / 0.4);
+      border-top-color: oklch(0.99 0 0);
+    }
+
+    /* ---------- FIELD STYLES (edit form inside detail) ---------- */
+    .field { margin-bottom: 14px; }
+    .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-3);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .field-input, .field-textarea {
+      width: 100%;
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--bg-elev);
+      font-family: inherit;
       font-size: 14px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.2);
-      z-index: 100;
-      max-width: 90vw;
+      color: var(--ink);
+      outline: none;
     }
-    .toast.error { background: #b1361b; }
-    .version {
-      position: fixed;
-      bottom: 8px;
-      right: 12px;
-      font-size: 10px;
-      color: var(--line-2);
-      letter-spacing: 0.05em;
-    }
-    .error-box {
-      background: #fdf0eb;
-      border: 1px solid #f4c4ad;
-      color: #8a2912;
-      padding: 12px 14px;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
-      margin-bottom: 16px;
-    }
-    .preview-banner {
-      background: var(--sage-soft);
-      color: var(--sage);
-      padding: 10px 14px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 18px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .field-textarea { min-height: 88px; resize: vertical; }
+    .field-input:focus, .field-textarea:focus { border-color: var(--accent); }
+
+    .row-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
     }
   </style>
 </head>
 <body>
   <div id="root"></div>
-  <div class="version" id="version">v2026.05.02.2</div>
+  <div class="version" id="version">v2026.05.02.3</div>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -558,12 +1149,12 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION = 'v2026.05.02.2';
-  const PASSCODE_KEY = 'recipes-passcode';
+  const APP_VERSION       = 'v2026.05.02.3';
+  const PASSCODE_KEY      = 'recipes-passcode';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
-  const CHECKED_KEY = 'recipes-checked-v1';
+  const CHECKED_KEY       = 'recipes-checked-v1';
 
-  // ---------- API ----------
+  // ---------- API client ----------
   function apiRequest(path, opts = {}) {
     const passcode = localStorage.getItem(PASSCODE_KEY) || '';
     const headers = Object.assign({}, opts.headers || {}, {
@@ -587,13 +1178,13 @@
     });
   }
   const api = {
-    list:           ()        => apiRequest('/api/recipes'),
-    get:            (id)      => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`),
-    save:           (id, r)   => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'PUT', body: r }),
-    remove:         (id)      => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    extract:        (url)     => apiRequest(`/api/recipes?extract=1`, { method: 'POST', body: { url } }),
+    list:           ()              => apiRequest('/api/recipes'),
+    get:            (id)            => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`),
+    save:           (id, r)         => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'PUT', body: r }),
+    remove:         (id)            => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    extract:        (url)           => apiRequest('/api/recipes?extract=1', { method: 'POST', body: { url } }),
     extractVideo:   (url, analysis) => apiRequest('/api/extract-video', { method: 'POST', body: { url, analysis } }),
-    jobStatus:      (jobId)   => apiRequest(`/api/job-status?id=${encodeURIComponent(jobId)}`),
+    jobStatus:      (jobId)         => apiRequest(`/api/job-status?id=${encodeURIComponent(jobId)}`),
   };
 
   // ---------- URL classification ----------
@@ -609,28 +1200,24 @@
     const p = detectPlatform(url);
     return p === 'instagram' || p === 'tiktok';
   }
+  function urlHost(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); }
+    catch { return ''; }
+  }
 
   // ---------- Helpers ----------
-  function newId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
-  function fmtTime(t) { return t || ''; }
-  function loadCache() {
-    try { return JSON.parse(localStorage.getItem(RECIPES_CACHE_KEY) || 'null'); } catch { return null; }
-  }
-  function saveCache(recipes) {
-    try { localStorage.setItem(RECIPES_CACHE_KEY, JSON.stringify(recipes)); } catch {}
-  }
-  function loadChecked(id) {
-    try { return JSON.parse(localStorage.getItem(CHECKED_KEY + ':' + id) || '[]'); } catch { return []; }
-  }
-  function saveChecked(id, arr) {
-    try { localStorage.setItem(CHECKED_KEY + ':' + id, JSON.stringify(arr)); } catch {}
-  }
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function loadCache()                    { try { return JSON.parse(localStorage.getItem(RECIPES_CACHE_KEY) || 'null'); } catch { return null; } }
+  function saveCache(recipes)             { try { localStorage.setItem(RECIPES_CACHE_KEY, JSON.stringify(recipes)); } catch {} }
+  function loadChecked(id)                { try { return JSON.parse(localStorage.getItem(CHECKED_KEY + ':' + id) || '[]'); } catch { return []; } }
+  function saveChecked(id, arr)           { try { localStorage.setItem(CHECKED_KEY + ':' + id, JSON.stringify(arr)); } catch {} }
   function firstLetter(s) {
     if (!s) return '🥘';
     const c = s.trim().charAt(0).toUpperCase();
     return /[A-Z]/.test(c) ? c : '🥘';
+  }
+  function timeLabel(r) {
+    return r.totalTime || r.cookTime || r.prepTime || '';
   }
 
   // ---------- Toast ----------
@@ -646,6 +1233,49 @@
     return [show, node];
   }
 
+  // ---------- Icons ----------
+  const Icon = {
+    Search:  () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>,
+    Plus:    (props) => <svg viewBox="0 0 24 24" width={props.size || 22} height={props.size || 22} fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>,
+    Back:    () => <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M15 6l-6 6 6 6"/></svg>,
+    Heart:   ({filled}) => <svg viewBox="0 0 24 24" width="20" height="20" fill={filled?'currentColor':'none'} stroke="currentColor" strokeWidth="2.2"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0112 6a5.5 5.5 0 019.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>,
+    Star:    ({filled}) => <svg className={'star ' + (filled?'filled':'')} viewBox="0 0 24 24" fill={filled?'currentColor':'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
+    Clock:   () => <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 3h6"/></svg>,
+    Link:    () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66L11 7"/><path d="M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66L13 17"/></svg>,
+    Edit:    () => <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>,
+    Trash:   () => <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+    InstagramIcon: () => <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>,
+    Globe:   () => <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>,
+    TikTokIcon: () => <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M19.6 6.3a4.4 4.4 0 0 1-3-1.4V14.8a5.6 5.6 0 1 1-5.6-5.6h.4v3a2.6 2.6 0 1 0 2.2 2.6V2h2.9a4.4 4.4 0 0 0 3.1 4.3z"/></svg>,
+  };
+
+  // ---------- Recipe placeholder image ----------
+  function RecipeMedia({ recipe }) {
+    const [failed, setFailed] = useState(false);
+    if (recipe.image && !failed) {
+      return <img src={recipe.image} alt="" loading="lazy" onError={() => setFailed(true)} />;
+    }
+    return (
+      <div className="recipe-img-placeholder">
+        <span className="recipe-img-letter">{firstLetter(recipe.title)}</span>
+        <span className="recipe-img-caption">{recipe.title ? recipe.title.split(' ').slice(0,3).join(' ') : 'recipe'}</span>
+      </div>
+    );
+  }
+
+  function SourceBadge({ url, size = 'sm' }) {
+    const platform = detectPlatform(url);
+    const host = urlHost(url) || (platform === 'instagram' ? 'instagram' : platform === 'tiktok' ? 'tiktok' : '');
+    const Icon_ = platform === 'instagram' ? Icon.InstagramIcon : platform === 'tiktok' ? Icon.TikTokIcon : Icon.Globe;
+    const klass = platform === 'instagram' ? 'source-ig' : platform === 'tiktok' ? 'source-tt' : 'source-web';
+    return (
+      <span className={`source-badge source-${size} ${klass}`}>
+        <Icon_ />
+        <span className="source-host">{host.replace(/\.com$/, '')}</span>
+      </span>
+    );
+  }
+
   // ---------- Passcode gate ----------
   function PasscodeGate({ onUnlock }) {
     const [val, setVal] = useState('');
@@ -656,217 +1286,364 @@
       if (!val.trim()) return;
       setBusy(true); setErr(null);
       localStorage.setItem(PASSCODE_KEY, val.trim());
-      try {
-        await api.list();
-        onUnlock();
-      } catch (e) {
-        localStorage.removeItem(PASSCODE_KEY);
-        setErr('Wrong passcode.');
-      } finally {
-        setBusy(false);
-      }
+      try { await api.list(); onUnlock(); }
+      catch { localStorage.removeItem(PASSCODE_KEY); setErr('Wrong passcode.'); }
+      finally { setBusy(false); }
     };
     return (
       <div className="gate">
         <form className="gate-card" onSubmit={submit}>
           <div className="brand">Recipes<span className="dot">.</span></div>
           <p>Enter the household passcode</p>
-          <input
-            type="password"
-            value={val}
-            onChange={e => setVal(e.target.value)}
-            autoFocus
-            inputMode="text"
-            autoComplete="off"
-          />
+          <input type="password" value={val} onChange={e => setVal(e.target.value)} autoFocus autoComplete="off" />
           {err && <div className="error-box" style={{textAlign:'left'}}>{err}</div>}
-          <button className="btn btn-primary" style={{width:'100%', justifyContent:'center'}} disabled={busy}>
-            {busy ? <><span className="spinner"/> Checking…</> : 'Unlock'}
+          <button className="primary-btn" disabled={busy}>
+            {busy ? <><span className="spinner on-accent"/> Checking…</> : 'Unlock'}
           </button>
         </form>
       </div>
     );
   }
 
-  // ---------- Icons (inline SVG) ----------
-  const Icon = {
-    Search: () => <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>,
-    Plus:   () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>,
-    Back:   () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>,
-    Star:   ({filled}) => <svg className={'star ' + (filled?'filled':'')} viewBox="0 0 24 24" fill={filled?'currentColor':'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
-    Edit:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>,
-    Trash:  () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
-  };
-
-  // ---------- List ----------
-  function ListView({ recipes, onOpen, onAdd, query, setQuery, tag, setTag }) {
+  // ---------- Library ----------
+  function LibraryScreen({ recipes, search, setSearch, tag, setTag, onOpen, onOpenImport }) {
     const allTags = useMemo(() => {
       const set = new Set();
       recipes.forEach(r => (r.tags || []).forEach(t => set.add(t)));
       return Array.from(set).sort();
     }, [recipes]);
 
-    const filtered = useMemo(() => {
-      const q = query.trim().toLowerCase();
+    const visible = useMemo(() => {
+      const q = (search || '').trim().toLowerCase();
       return recipes.filter(r => {
         if (tag && !(r.tags || []).includes(tag)) return false;
         if (!q) return true;
         const hay = [
           r.title, r.description, r.author,
-          (r.ingredients||[]).join(' '),
-          (r.tags||[]).join(' '),
-          (r.notes||''),
+          (r.ingredients || []).join(' '),
+          (r.tags || []).join(' '),
+          r.notes || '',
         ].join(' ').toLowerCase();
         return hay.includes(q);
       }).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-    }, [recipes, query, tag]);
+    }, [recipes, search, tag]);
 
     return (
-      <>
-        <div className="topbar">
-          <div className="brand" onClick={() => { setQuery(''); setTag(''); }}>Recipes<span className="dot">.</span></div>
-          <div className="topbar-spacer" />
-          <div className="search">
-            <Icon.Search />
-            <input
-              placeholder="Search title, ingredient, tag…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
+      <div className="screen library-screen">
+        <div className="lib-header">
+          <div className="brand-row">
+            <div className="brand">Recipes<span className="dot">.</span></div>
+            <div className="header-count">
+              {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
+            </div>
           </div>
-          <button className="btn btn-primary" onClick={onAdd}><Icon.Plus /> Add recipe</button>
+          <div className="search-row">
+            <label className="search-input">
+              <Icon.Search />
+              <input
+                type="text"
+                placeholder="Search title, ingredient, tag…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              {search && <button type="button" className="search-clear" onClick={() => setSearch('')} aria-label="Clear">×</button>}
+            </label>
+          </div>
+          {allTags.length > 0 && (
+            <div className="active-chips">
+              <button className={'chip ' + (!tag ? 'on' : '')} onClick={() => setTag('')}>All</button>
+              {allTags.map(t => (
+                <button key={t} className={'chip ' + (tag === t ? 'on' : '')} onClick={() => setTag(t === tag ? '' : t)}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {allTags.length > 0 && (
-          <div className="tag-row">
-            <div className={'tag' + (!tag ? ' active' : '')} onClick={() => setTag('')}>All</div>
-            {allTags.map(t => (
-              <div key={t} className={'tag' + (tag === t ? ' active' : '')} onClick={() => setTag(t === tag ? '' : t)}>{t}</div>
-            ))}
-          </div>
-        )}
+        <div className="lib-scroll">
+          {recipes.length === 0 ? (
+            <div className="empty">
+              <div className="empty-emoji">🍳</div>
+              <h3>Start your library</h3>
+              <p>Tap + to import from a recipe site, Instagram reel, or TikTok.</p>
+            </div>
+          ) : visible.length === 0 ? (
+            <div className="empty">
+              <div className="empty-emoji">🔍</div>
+              <h3>No matches</h3>
+              <p>Try a different search or clear the tag.</p>
+              <button className="btn-text" onClick={() => { setSearch(''); setTag(''); }}>Clear filters</button>
+            </div>
+          ) : (
+            <div className="grid">
+              {visible.map((r, i) => (
+                <div className="grid-item" key={r.id} style={{ animationDelay: `${Math.min(i, 12) * 28}ms` }}>
+                  <RecipeCard recipe={r} onOpen={onOpen} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-        {recipes.length === 0 ? (
-          <div className="empty">
-            <div className="empty-art">R.</div>
-            <h2>No recipes yet</h2>
-            <p>Paste a link to your first recipe — we'll pull the ingredients and steps and store everything in your Dropbox.</p>
-            <button className="btn btn-primary" onClick={onAdd}><Icon.Plus /> Add your first recipe</button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="empty">
-            <h2>Nothing matches</h2>
-            <p>Try a different search or clear the filter.</p>
-          </div>
-        ) : (
-          <div className="grid">
-            {filtered.map(r => <RecipeCard key={r.id} recipe={r} onClick={() => onOpen(r.id)} />)}
-          </div>
-        )}
-      </>
+        <button className="fab" onClick={onOpenImport} aria-label="Add recipe">
+          <Icon.Plus />
+        </button>
+      </div>
     );
   }
 
-  function RecipeCard({ recipe, onClick }) {
-    const meta = [];
-    if (recipe.totalTime) meta.push(recipe.totalTime);
-    else if (recipe.cookTime) meta.push(recipe.cookTime);
-    if (recipe.servings) meta.push(recipe.servings);
-    const [imgFailed, setImgFailed] = useState(false);
+  function RecipeCard({ recipe, onOpen }) {
+    const platform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
+    const sourceLabel = platform === 'instagram' ? 'IG' : platform === 'tiktok' ? 'TikTok' : (urlHost(recipe.sourceUrl).replace(/\.com$/,'') || '');
     return (
-      <div className="card" onClick={onClick}>
-        {recipe.image && !imgFailed
-          ? <img className="card-image" src={recipe.image} alt="" loading="lazy" onError={() => setImgFailed(true)} />
-          : <div className="card-image-placeholder">{firstLetter(recipe.title)}</div>}
-        <div className="card-body">
-          <div className="card-title">{recipe.title || 'Untitled'}</div>
-          {meta.length > 0 && (
-            <div className="card-meta">
-              {meta.map((m, i) => (
-                <React.Fragment key={i}>
-                  {i > 0 && <span className="card-meta-dot" />}
-                  <span>{m}</span>
-                </React.Fragment>
-              ))}
-              {recipe.rating > 0 && (<>
-                <span className="card-meta-dot" />
-                <span style={{color:'var(--amber)'}}>★ {recipe.rating}</span>
-              </>)}
+      <article className="recipe-card" onClick={() => onOpen(recipe)}>
+        <div className="recipe-card-media">
+          <RecipeMedia recipe={recipe} />
+          {sourceLabel && (
+            <span className="source-corner">
+              {platform === 'instagram' ? <Icon.InstagramIcon /> : platform === 'tiktok' ? <Icon.TikTokIcon /> : <Icon.Globe />}
+              {sourceLabel}
+            </span>
+          )}
+          {recipe.favorite && (
+            <span className="fav-pill" aria-label="Favorite">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                <path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0112 6a5.5 5.5 0 019.5 6c-2.5 4.5-9.5 9-9.5 9z"/>
+              </svg>
+            </span>
+          )}
+        </div>
+        <div className="recipe-card-body">
+          <h3 className="recipe-card-title">{recipe.title || 'Untitled'}</h3>
+          <div className="recipe-card-meta">
+            {timeLabel(recipe) && (
+              <span className="time-badge">
+                <Icon.Clock />
+                {timeLabel(recipe)}
+              </span>
+            )}
+            {timeLabel(recipe) && recipe.servings && <span className="meta-sep" />}
+            {recipe.servings && <span className="time-badge" style={{textTransform:'lowercase'}}>{recipe.servings}</span>}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  // ---------- Detail ----------
+  function DetailScreen({ recipe, onClose, onSave, onDelete, onEdit }) {
+    const [tab, setTab] = useState('ingredients');
+    const [checkedIng, setCheckedIng] = useState(() => new Set(loadChecked(recipe.id)));
+    const [stepIdx, setStepIdx] = useState(0);
+    const [notes, setNotes] = useState(recipe.notes || '');
+    const [rating, setRating] = useState(recipe.rating || 0);
+    const [favorite, setFavorite] = useState(!!recipe.favorite);
+    const personalDirty = useRef(false);
+
+    const platform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
+    const isSocial = platform === 'instagram' || platform === 'tiktok';
+
+    const toggleIng = (i) => {
+      setCheckedIng(prev => {
+        const n = new Set(prev);
+        n.has(i) ? n.delete(i) : n.add(i);
+        saveChecked(recipe.id, Array.from(n));
+        return n;
+      });
+    };
+
+    const toggleFav = async () => {
+      const next = !favorite;
+      setFavorite(next);
+      try { await onSave({ ...recipe, favorite: next }); } catch {}
+    };
+
+    const persistPersonal = useCallback(async () => {
+      if (!personalDirty.current) return;
+      personalDirty.current = false;
+      try { await onSave({ ...recipe, notes, rating, favorite }); } catch {}
+    }, [recipe, notes, rating, favorite, onSave]);
+
+    useEffect(() => () => { persistPersonal(); }, [persistPersonal]);
+
+    const tags = recipe.tags || [];
+    const ingredients = recipe.ingredients || [];
+    const instructions = (recipe.instructions || []).map((s, i) => ({
+      i, text: s, isHeader: /^—.*—$/.test(s)
+    }));
+
+    return (
+      <div className="detail-screen">
+        <div className="detail-hero">
+          {isSocial
+            ? <SocialEmbed url={recipe.sourceUrl} platform={platform} fallbackImage={recipe.image} />
+            : <RecipeMedia recipe={recipe} />}
+          <div className="detail-hero-fade" />
+          <button className="detail-close" onClick={onClose} aria-label="Back"><Icon.Back /></button>
+          <button className={'detail-fav ' + (favorite ? 'on' : '')} onClick={toggleFav} aria-label="Favorite">
+            <Icon.Heart filled={favorite} />
+          </button>
+          {(recipe.author || recipe.sourceUrl) && (
+            <div className="detail-source-row">
+              <SourceBadge url={recipe.sourceUrl} size="lg" />
+              {recipe.author && <span className="detail-author">{recipe.author}</span>}
             </div>
           )}
-          <div className="card-tags">
-            {(recipe.tags || []).slice(0, 3).map(t => <span key={t} className="tag-static">{t}</span>)}
+        </div>
+
+        <div className="detail-body">
+          <h1 className="detail-title">{recipe.title || 'Untitled'}</h1>
+          {recipe.description && <p className="detail-description">{recipe.description}</p>}
+
+          {(recipe.prepTime || recipe.cookTime || recipe.totalTime || recipe.servings) && (
+            <div className="detail-meta-row">
+              {recipe.prepTime  && <div className="meta-pill"><span className="meta-pill-icon">⏱</span> Prep {recipe.prepTime}</div>}
+              {recipe.cookTime  && <div className="meta-pill"><span className="meta-pill-icon">🔥</span> Cook {recipe.cookTime}</div>}
+              {!recipe.prepTime && !recipe.cookTime && recipe.totalTime &&
+                <div className="meta-pill"><span className="meta-pill-icon">⏱</span> {recipe.totalTime}</div>}
+              {recipe.servings && <div className="meta-pill"><span className="meta-pill-icon">🍽</span> {recipe.servings}</div>}
+            </div>
+          )}
+
+          {tags.length > 0 && (
+            <div className="tag-row">
+              {tags.map(t => <span key={t} className="tag tag-accent">{t}</span>)}
+            </div>
+          )}
+
+          <div className="tabs">
+            <button className={'tab ' + (tab === 'ingredients' ? 'on' : '')} onClick={() => setTab('ingredients')}>
+              Ingredients <span className="tab-count">{ingredients.length}</span>
+            </button>
+            <button className={'tab ' + (tab === 'steps' ? 'on' : '')} onClick={() => setTab('steps')}>
+              Steps <span className="tab-count">{instructions.filter(s => !s.isHeader).length}</span>
+            </button>
+            <button className={'tab ' + (tab === 'notes' ? 'on' : '')} onClick={() => setTab('notes')}>
+              Notes
+            </button>
           </div>
+
+          {tab === 'ingredients' && (
+            <ul className="ingredient-list">
+              {ingredients.map((ing, i) => (
+                <li key={i} className={'ing-row ' + (checkedIng.has(i) ? 'checked' : '')} onClick={() => toggleIng(i)}>
+                  <span className="ing-check">
+                    {checkedIng.has(i) && (
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                        <path d="M5 13l4 4 10-10" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="ing-text">{ing}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {tab === 'steps' && (
+            <ol className="steps-list">
+              {instructions.map(step => step.isHeader ? (
+                <li key={step.i} className="step-row section-heading">
+                  {step.text.replace(/—/g, '').trim()}
+                </li>
+              ) : (
+                <li
+                  key={step.i}
+                  className={'step-row ' + (step.i === stepIdx ? 'active' : '')}
+                  onClick={() => setStepIdx(step.i)}
+                >
+                  <span className="step-num">{instructions.slice(0, step.i).filter(s => !s.isHeader).length + 1}</span>
+                  <span className="step-text">{step.text}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {tab === 'notes' && (
+            <div>
+              <div className="stars-row">
+                {[1,2,3,4,5].map(n => (
+                  <span key={n} onClick={() => { setRating(n === rating ? 0 : n); personalDirty.current = true; }}>
+                    <Icon.Star filled={n <= rating} />
+                  </span>
+                ))}
+              </div>
+              <textarea
+                className="notes-edit"
+                placeholder="Halve the salt next time. Roasted at 425 instead of 400…"
+                value={notes}
+                onChange={e => { setNotes(e.target.value); personalDirty.current = true; }}
+                onBlur={persistPersonal}
+              />
+            </div>
+          )}
+
+          <div style={{height: 100}} />
+        </div>
+
+        <div className="detail-actions-bar">
+          <button className="primary-btn" onClick={onEdit} style={{flex: 1}}>Edit recipe</button>
+          <button className="danger-btn" onClick={onDelete} aria-label="Delete">
+            <Icon.Trash />
+          </button>
         </div>
       </div>
     );
   }
 
   // ---------- Social embed (Instagram + TikTok) ----------
-  // Loads the platform's embed.js once per session, then renders their
-  // standard blockquote which the script upgrades into a player.
   function SocialEmbed({ url, platform, fallbackImage }) {
-    const ref = useRef(null);
-
     useEffect(() => {
       const scriptId = platform === 'instagram' ? 'ig-embed-js' : 'tt-embed-js';
       const scriptSrc = platform === 'instagram'
         ? 'https://www.instagram.com/embed.js'
         : 'https://www.tiktok.com/embed.js';
-
       const ensureScript = () => new Promise((resolve) => {
-        if (document.getElementById(scriptId)) return resolve();
+        if (document.getElementById(scriptId)) {
+          if (platform === 'instagram' && window.instgrm?.Embeds) window.instgrm.Embeds.process();
+          return resolve();
+        }
         const s = document.createElement('script');
-        s.id = scriptId;
-        s.async = true;
-        s.src = scriptSrc;
-        s.onload = resolve;
+        s.id = scriptId; s.async = true; s.src = scriptSrc;
+        s.onload = () => {
+          if (platform === 'instagram' && window.instgrm?.Embeds) window.instgrm.Embeds.process();
+          resolve();
+        };
         document.body.appendChild(s);
       });
-
-      ensureScript().then(() => {
-        // Tell the embed lib to (re)scan for our blockquote.
-        if (platform === 'instagram' && window.instgrm && window.instgrm.Embeds) {
-          window.instgrm.Embeds.process();
-        }
-        // TikTok auto-scans on script load, but reload-safe: re-add the script
-        // if the embed didn't take. Their lib rescans on DOM mutations.
-      });
+      ensureScript();
     }, [url, platform]);
 
     if (platform === 'instagram') {
       return (
-        <div className="social-embed" ref={ref} style={{margin:'0 auto 26px', maxWidth:'540px'}}>
+        <div className="social-embed" style={{padding: '12px', background: 'var(--bg-sunk)'}}>
           <blockquote
             className="instagram-media"
             data-instgrm-permalink={url}
             data-instgrm-version="14"
-            style={{
-              background:'var(--surface)', border:0, borderRadius:'var(--radius)',
-              boxShadow: 'var(--shadow)', margin:'0 auto', maxWidth:'540px', minWidth:'280px', padding:0,
-            }}
+            style={{ background:'#fff', border:0, borderRadius:'10px', margin:'0 auto', maxWidth:'400px', minWidth:'280px', padding:0 }}
           >
-            <a href={url} target="_blank" rel="noopener" style={{display:'block', padding:'40px', textAlign:'center', color:'var(--muted)'}}>
+            <a href={url} target="_blank" rel="noopener" style={{display:'block', padding:'40px', textAlign:'center', color:'var(--ink-3)'}}>
               {fallbackImage
-                ? <img src={fallbackImage} alt="" style={{width:'100%', borderRadius:'var(--radius)'}} />
-                : <span>View on Instagram</span>}
+                ? <img src={fallbackImage} alt="" style={{width:'100%', borderRadius:'10px'}} />
+                : <span>Loading Instagram reel…</span>}
             </a>
           </blockquote>
         </div>
       );
     }
 
-    // TikTok
     const videoIdMatch = (url || '').match(/\/video\/(\d+)/);
     const videoId = videoIdMatch ? videoIdMatch[1] : '';
     return (
-      <div className="social-embed" ref={ref} style={{margin:'0 auto 26px', maxWidth:'540px'}}>
-        <blockquote className="tiktok-embed" cite={url} data-video-id={videoId} style={{maxWidth:'540px', minWidth:'280px'}}>
+      <div className="social-embed" style={{padding: '12px', background: 'var(--bg-sunk)'}}>
+        <blockquote className="tiktok-embed" cite={url} data-video-id={videoId} style={{maxWidth:'400px', minWidth:'280px', margin:'0 auto'}}>
           <section>
-            <a href={url} target="_blank" rel="noopener" style={{display:'block', padding:'40px', textAlign:'center', color:'var(--muted)'}}>
+            <a href={url} target="_blank" rel="noopener" style={{display:'block', padding:'40px', textAlign:'center', color:'var(--ink-3)'}}>
               {fallbackImage
-                ? <img src={fallbackImage} alt="" style={{width:'100%', borderRadius:'var(--radius)'}} />
-                : <span>View on TikTok</span>}
+                ? <img src={fallbackImage} alt="" style={{width:'100%', borderRadius:'10px'}} />
+                : <span>Loading TikTok video…</span>}
             </a>
           </section>
         </blockquote>
@@ -874,198 +1651,11 @@
     );
   }
 
-  // ---------- Detail ----------
-  function DetailView({ recipe, onBack, onEdit, onDelete, onSave }) {
-    const [checked, setChecked] = useState(() => loadChecked(recipe.id));
-    const [notes, setNotes] = useState(recipe.notes || '');
-    const [rating, setRating] = useState(recipe.rating || 0);
-    const [imgFailed, setImgFailed] = useState(false);
-    const personalDirty = useRef(false);
-
-    const toggleChecked = (i) => {
-      const next = checked.includes(i) ? checked.filter(x => x !== i) : [...checked, i];
-      setChecked(next);
-      saveChecked(recipe.id, next);
-    };
-
-    const persistPersonal = useCallback(async () => {
-      if (!personalDirty.current) return;
-      personalDirty.current = false;
-      await onSave({ ...recipe, notes, rating });
-    }, [recipe, notes, rating, onSave]);
-
-    useEffect(() => {
-      // autosave personal block on blur / unmount
-      return () => { persistPersonal(); };
-    }, [persistPersonal]);
-
-    const sourcePlatform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
-
-    return (
-      <>
-        <button className="detail-back" onClick={onBack}><Icon.Back /> Back to recipes</button>
-
-        {sourcePlatform === 'instagram' || sourcePlatform === 'tiktok'
-          ? <SocialEmbed url={recipe.sourceUrl} platform={sourcePlatform} fallbackImage={recipe.image} />
-          : (recipe.image && !imgFailed
-              ? <img className="detail-hero" src={recipe.image} alt="" onError={() => setImgFailed(true)} />
-              : null)}
-
-        <h1 className="detail-title">{recipe.title || 'Untitled'}</h1>
-
-        {(recipe.author || recipe.sourceUrl) && (
-          <div className="detail-source">
-            {recipe.author && <>by {recipe.author} · </>}
-            {recipe.sourceUrl && <a href={recipe.sourceUrl} target="_blank" rel="noopener">view original</a>}
-          </div>
-        )}
-
-        {recipe.description && <p style={{color:'var(--ink-2)', fontSize:'17px', lineHeight:'1.6', marginBottom:'24px', maxWidth:'640px'}}>{recipe.description}</p>}
-
-        {(recipe.tags || []).length > 0 && (
-          <div style={{marginBottom: '20px'}}>
-            {(recipe.tags || []).map(t => <span key={t} className="tag-static">{t}</span>)}
-          </div>
-        )}
-
-        {(recipe.prepTime || recipe.cookTime || recipe.totalTime || recipe.servings) && (
-          <div className="detail-meta-row">
-            {recipe.prepTime  && <div className="meta-stat"><span className="meta-stat-label">Prep</span><span className="meta-stat-value">{fmtTime(recipe.prepTime)}</span></div>}
-            {recipe.cookTime  && <div className="meta-stat"><span className="meta-stat-label">Cook</span><span className="meta-stat-value">{fmtTime(recipe.cookTime)}</span></div>}
-            {recipe.totalTime && <div className="meta-stat"><span className="meta-stat-label">Total</span><span className="meta-stat-value">{fmtTime(recipe.totalTime)}</span></div>}
-            {recipe.servings  && <div className="meta-stat"><span className="meta-stat-label">Yield</span><span className="meta-stat-value">{recipe.servings}</span></div>}
-          </div>
-        )}
-
-        <div className="detail-body">
-          <div>
-            <h2 className="section-label">Ingredients</h2>
-            <ul className="ingredient-list">
-              {(recipe.ingredients || []).map((ing, i) => (
-                <li key={i} className={checked.includes(i) ? 'checked' : ''} onClick={() => toggleChecked(i)}>
-                  <span className="ingredient-check" />
-                  <span>{ing}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h2 className="section-label">Steps</h2>
-            <ol className="step-list">
-              {(recipe.instructions || []).map((step, i) => {
-                const isHeader = /^—.*—$/.test(step);
-                return <li key={i} className={isHeader ? 'section-heading' : ''}>{isHeader ? step.replace(/—/g, '').trim() : step}</li>;
-              })}
-            </ol>
-          </div>
-        </div>
-
-        <div className="personal">
-          <h3 style={{fontFamily:'Fraunces, serif', fontSize:'18px', fontWeight:600, marginBottom:'10px', color:'var(--ink)'}}>Your notes</h3>
-          <div className="stars">
-            {[1,2,3,4,5].map(n => (
-              <span key={n} onClick={() => { setRating(n === rating ? 0 : n); personalDirty.current = true; }}>
-                <Icon.Star filled={n <= rating} />
-              </span>
-            ))}
-          </div>
-          <textarea
-            className="notes-input"
-            placeholder="Halve the salt next time. Roasted at 425 instead of 400…"
-            value={notes}
-            onChange={e => { setNotes(e.target.value); personalDirty.current = true; }}
-            onBlur={persistPersonal}
-          />
-        </div>
-
-        <div style={{display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'30px', flexWrap:'wrap'}}>
-          <button className="btn btn-danger" onClick={onDelete}><Icon.Trash /> Delete</button>
-          <button className="btn" onClick={onEdit}><Icon.Edit /> Edit</button>
-        </div>
-      </>
-    );
-  }
-
-  // ---------- Add / Edit ----------
-  function AddView({ existing, onCancel, onSaved, onVideoExtracted }) {
-    const editing = !!existing;
-    const [step, setStep] = useState(editing ? 'edit' : 'url');
-    const [url, setUrl] = useState('');
-    const [analysis, setAnalysis] = useState('auto');
+  // ---------- Edit form (overlay) ----------
+  function EditForm({ recipe, onCancel, onSave }) {
+    const [draft, setDraft] = useState(recipe);
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState(null);
-    const [draft, setDraft] = useState(existing || null);
-    const [jobId, setJobId] = useState(null);
-    const [progress, setProgress] = useState('');
-    const pollRef = useRef(null);
-
-    const trimmedUrl = url.trim();
-    const platform = trimmedUrl ? detectPlatform(trimmedUrl) : 'web';
-    const showAnalysis = isVideoUrl(trimmedUrl);
-
-    // Polling effect: when we have a jobId, check status every 2s.
-    useEffect(() => {
-      if (!jobId) return;
-      let cancelled = false;
-      const tick = async () => {
-        try {
-          const job = await api.jobStatus(jobId);
-          if (cancelled) return;
-          setProgress(job.progress || job.status);
-          if (job.status === 'done' && job.recipeId) {
-            cancelled = true;
-            onVideoExtracted(job.recipeId);
-          } else if (job.status === 'error') {
-            cancelled = true;
-            setErr(job.error || 'Extraction failed.');
-            setStep('url');
-            setBusy(false);
-            setJobId(null);
-          } else {
-            pollRef.current = setTimeout(tick, 2000);
-          }
-        } catch (e) {
-          if (cancelled) return;
-          // 404 or transient issue — keep polling a few more times.
-          pollRef.current = setTimeout(tick, 2500);
-        }
-      };
-      pollRef.current = setTimeout(tick, 1500);
-      return () => {
-        cancelled = true;
-        if (pollRef.current) clearTimeout(pollRef.current);
-      };
-    }, [jobId, onVideoExtracted]);
-
-    const doExtract = async (e) => {
-      e.preventDefault();
-      if (!trimmedUrl) return;
-      setBusy(true); setErr(null);
-      try {
-        if (isVideoUrl(trimmedUrl)) {
-          // Async video pipeline.
-          const { jobId: id } = await api.extractVideo(trimmedUrl, analysis);
-          setJobId(id);
-          setProgress('Queued');
-          setStep('polling');
-        } else {
-          // Sync recipe-site path (existing).
-          const parsed = await api.extract(trimmedUrl);
-          setDraft({
-            id: newId(),
-            ...parsed,
-            tags: [],
-            notes: '',
-            rating: 0,
-          });
-          setStep('edit');
-        }
-      } catch (e) {
-        setErr(e.message || 'Extraction failed.');
-      } finally {
-        if (!isVideoUrl(trimmedUrl)) setBusy(false);
-      }
-    };
 
     const updateDraft = (patch) => setDraft(d => ({...d, ...patch}));
     const updateArr = (key, idx, val) => setDraft(d => {
@@ -1079,8 +1669,8 @@
       if (!draft.title.trim()) { setErr('Title is required.'); return; }
       setBusy(true); setErr(null);
       try {
-        const saved = await api.save(draft.id, draft);
-        onSaved(saved);
+        const saved = await onSave(draft);
+        // onSave should close the overlay
       } catch (e) {
         setErr(e.message || 'Save failed.');
       } finally {
@@ -1088,106 +1678,25 @@
       }
     };
 
-    if (step === 'polling') {
-      return (
-        <div>
-          <div className="add-card" style={{textAlign:'center', padding:'48px 28px'}}>
-            <div className="empty-art" style={{fontSize:'72px', marginBottom:'18px'}}>•••</div>
-            <h2 style={{marginBottom:'10px'}}>Extracting your recipe</h2>
-            <p style={{color:'var(--muted)', marginBottom:'24px'}}>
-              {progress || 'Working on it…'}
-            </p>
-            <div className="spinner" style={{width:'24px', height:'24px', borderWidth:'3px'}} />
-            <p style={{color:'var(--muted)', fontSize:'13px', marginTop:'24px'}}>
-              {platform === 'instagram' ? 'Instagram' : platform === 'tiktok' ? 'TikTok' : 'Video'} reels usually take 15–30 seconds.
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    if (step === 'url') {
-      return (
-        <div>
-          <button className="detail-back" onClick={onCancel}><Icon.Back /> Cancel</button>
-          <div className="add-card">
-            <h1 style={{marginBottom:'8px'}}>Add a recipe</h1>
-            <p style={{color:'var(--muted)', marginBottom:'24px'}}>
-              Paste a link from any recipe site, Instagram reel, or TikTok. We'll pull the ingredients and steps.
-            </p>
-            <form onSubmit={doExtract}>
-              <input
-                className="url-input"
-                type="url"
-                placeholder="https://cooking.nytimes.com/recipes/…  or  https://instagram.com/reel/…"
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                autoFocus
-                inputMode="url"
-              />
-
-              {showAnalysis && (
-                <div style={{marginTop:'18px'}}>
-                  <label className="field-label" style={{marginBottom:'8px'}}>How should we extract it?</label>
-                  <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
-                    {[
-                      { v:'auto',   label:'Smart (recommended)', desc:'Caption first, then audio' },
-                      { v:'audio',  label:'Audio only',          desc:'Skip caption, transcribe' },
-                      { v:'gemini', label:'Full video (Gemini)', desc:'Most thorough, costs more' },
-                    ].map(opt => (
-                      <button
-                        key={opt.v}
-                        type="button"
-                        onClick={() => setAnalysis(opt.v)}
-                        className={'tag' + (analysis === opt.v ? ' active' : '')}
-                        style={{padding:'10px 14px', cursor:'pointer'}}
-                        title={opt.desc}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {err && <div className="error-box" style={{marginTop:'14px'}}>{err}</div>}
-              <div style={{display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'20px'}}>
-                <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={busy || !trimmedUrl}>
-                  {busy ? <><span className="spinner" /> {showAnalysis ? 'Starting…' : 'Extracting…'}</> : 'Extract recipe'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      );
-    }
-
-    // edit step
     const tagsString = (draft.tags || []).join(', ');
+
     return (
-      <div>
-        <button className="detail-back" onClick={onCancel}><Icon.Back /> {editing ? 'Cancel' : 'Back'}</button>
-        <div className="add-card">
-          <h1 style={{marginBottom:'18px'}}>{editing ? 'Edit recipe' : 'Review & save'}</h1>
-          {!editing && draft.extractedBy && (
-            <div className="preview-banner">
-              {draft.extractedBy === 'json-ld' ? '✓ Pulled from structured data' :
-               draft.extractedBy === 'json-ld-partial' ? '⚠︎ Partial structured data — review carefully' :
-               draft.extractedBy === 'claude' ? '✓ Extracted by Claude' :
-               '✓ Extracted'}
-            </div>
-          )}
+      <div className="detail-screen">
+        <div className="detail-body" style={{padding: '20px 22px 100px', marginTop: 0, borderRadius: 0}}>
+          <button className="ghost-btn" onClick={onCancel} style={{marginBottom: 14, height: 36, padding: '0 14px', fontSize: 13}}>
+            <Icon.Back /> Cancel
+          </button>
+          <h1 className="detail-title">Edit recipe</h1>
 
           <div className="field"><label className="field-label">Title</label>
-            <input className="field-input" value={draft.title} onChange={e => updateDraft({title: e.target.value})} />
+            <input className="field-input" value={draft.title || ''} onChange={e => updateDraft({title: e.target.value})} />
           </div>
 
-          <div className="field"><label className="field-label">Description (optional)</label>
-            <textarea className="field-textarea" style={{minHeight:'70px'}} value={draft.description || ''} onChange={e => updateDraft({description: e.target.value})} />
+          <div className="field"><label className="field-label">Description</label>
+            <textarea className="field-textarea" style={{minHeight: 70}} value={draft.description || ''} onChange={e => updateDraft({description: e.target.value})} />
           </div>
 
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px', marginBottom:'4px'}}>
+          <div className="row-group">
             <div className="field"><label className="field-label">Prep</label>
               <input className="field-input" value={draft.prepTime || ''} onChange={e => updateDraft({prepTime: e.target.value})} />
             </div>
@@ -1205,8 +1714,7 @@
           <div className="field"><label className="field-label">Tags (comma-separated)</label>
             <input className="field-input" value={tagsString}
               onChange={e => updateDraft({tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean)})}
-              placeholder="weeknight, vegetarian, soup"
-            />
+              placeholder="weeknight, vegetarian, soup" />
           </div>
 
           <div className="field">
@@ -1214,39 +1722,270 @@
             {(draft.ingredients || []).map((ing, i) => (
               <div key={i} style={{display:'flex', gap:'8px', marginBottom:'6px'}}>
                 <input className="field-input" value={ing} onChange={e => updateArr('ingredients', i, e.target.value)} />
-                <button type="button" className="btn btn-ghost" onClick={() => updateArr('ingredients', i, null)} title="Remove">×</button>
+                <button type="button" className="ghost-btn" style={{height: 'auto', padding: '0 12px'}} onClick={() => updateArr('ingredients', i, null)} title="Remove">×</button>
               </div>
             ))}
-            <button type="button" className="btn btn-ghost" onClick={() => addArrItem('ingredients')} style={{marginTop:'4px'}}>+ Add ingredient</button>
+            <button type="button" className="ghost-btn" style={{height: 36, padding: '0 14px', fontSize: 13, marginTop: 6}} onClick={() => addArrItem('ingredients')}>+ Add ingredient</button>
           </div>
 
           <div className="field">
-            <label className="field-label">Instructions (one step per line)</label>
+            <label className="field-label">Instructions</label>
             {(draft.instructions || []).map((step, i) => (
               <div key={i} style={{display:'flex', gap:'8px', marginBottom:'6px'}}>
-                <textarea className="field-textarea" style={{minHeight:'52px'}} value={step} onChange={e => updateArr('instructions', i, e.target.value)} />
-                <button type="button" className="btn btn-ghost" onClick={() => updateArr('instructions', i, null)} title="Remove">×</button>
+                <textarea className="field-textarea" style={{minHeight: 50}} value={step} onChange={e => updateArr('instructions', i, e.target.value)} />
+                <button type="button" className="ghost-btn" style={{height: 'auto', padding: '0 12px'}} onClick={() => updateArr('instructions', i, null)} title="Remove">×</button>
               </div>
             ))}
-            <button type="button" className="btn btn-ghost" onClick={() => addArrItem('instructions')} style={{marginTop:'4px'}}>+ Add step</button>
+            <button type="button" className="ghost-btn" style={{height: 36, padding: '0 14px', fontSize: 13, marginTop: 6}} onClick={() => addArrItem('instructions')}>+ Add step</button>
           </div>
 
           <div className="field"><label className="field-label">Image URL</label>
             <input className="field-input" value={draft.image || ''} onChange={e => updateDraft({image: e.target.value})} />
           </div>
-
           <div className="field"><label className="field-label">Source URL</label>
             <input className="field-input" value={draft.sourceUrl || ''} onChange={e => updateDraft({sourceUrl: e.target.value})} />
           </div>
 
           {err && <div className="error-box">{err}</div>}
+        </div>
 
-          <div style={{display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'20px'}}>
-            <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-            <button type="button" className="btn btn-primary" onClick={doSave} disabled={busy}>
-              {busy ? <><span className="spinner" /> Saving…</> : 'Save recipe'}
-            </button>
-          </div>
+        <div className="detail-actions-bar">
+          <button className="ghost-btn" onClick={onCancel}>Cancel</button>
+          <button className="primary-btn" onClick={doSave} disabled={busy}>
+            {busy ? <><span className="spinner on-accent" /> Saving…</> : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Import sheet ----------
+  function ImportSheet({ onClose, onImported, onPreviewSave, showToast }) {
+    const [stage, setStage] = useState('paste');  // paste | detecting | preview | error
+    const [url, setUrl] = useState('');
+    const [analysis, setAnalysis] = useState('auto');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState(null);
+    const [preview, setPreview] = useState(null);
+    const [progress, setProgress] = useState('');
+    const [jobId, setJobId] = useState(null);
+    const inputRef = useRef(null);
+    const pollRef = useRef(null);
+
+    useEffect(() => { setTimeout(() => inputRef.current?.focus(), 280); }, []);
+
+    const trimmedUrl = url.trim();
+    const platform = trimmedUrl ? detectPlatform(trimmedUrl) : null;
+    const showAnalysis = isVideoUrl(trimmedUrl);
+
+    // Polling for video extraction
+    useEffect(() => {
+      if (!jobId) return;
+      let cancelled = false;
+      const tick = async () => {
+        try {
+          const job = await api.jobStatus(jobId);
+          if (cancelled) return;
+          setProgress(job.progress || job.status);
+          if (job.status === 'done' && job.recipeId) {
+            cancelled = true;
+            try {
+              const saved = await api.get(job.recipeId);
+              onImported(saved);
+            } catch (e) {
+              setErr(e.message || 'Could not load extracted recipe.');
+              setStage('error');
+            }
+          } else if (job.status === 'error') {
+            cancelled = true;
+            setErr(job.error || 'Extraction failed.');
+            setStage('error');
+          } else {
+            pollRef.current = setTimeout(tick, 2000);
+          }
+        } catch {
+          if (cancelled) return;
+          pollRef.current = setTimeout(tick, 2500);
+        }
+      };
+      pollRef.current = setTimeout(tick, 1500);
+      return () => { cancelled = true; if (pollRef.current) clearTimeout(pollRef.current); };
+    }, [jobId, onImported]);
+
+    const startDetect = async () => {
+      if (!trimmedUrl) return;
+      setBusy(true); setErr(null);
+      try {
+        if (isVideoUrl(trimmedUrl)) {
+          const { jobId: id } = await api.extractVideo(trimmedUrl, analysis);
+          setJobId(id);
+          setProgress('Queued');
+          setStage('detecting');
+        } else {
+          setStage('detecting');
+          const parsed = await api.extract(trimmedUrl);
+          setPreview({
+            id: newId(),
+            ...parsed,
+            tags: [],
+            notes: '',
+            rating: 0,
+            favorite: false,
+          });
+          setStage('preview');
+        }
+      } catch (e) {
+        setErr(e.message || 'Extraction failed.');
+        setStage('error');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const doSave = async () => {
+      if (!preview) return;
+      setBusy(true); setErr(null);
+      try {
+        const saved = await onPreviewSave(preview);
+        // onPreviewSave should close the sheet
+      } catch (e) {
+        setErr(e.message || 'Save failed.');
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="sheet-overlay" onClick={onClose}>
+        <div className="sheet" onClick={e => e.stopPropagation()}>
+          <div className="sheet-grab" />
+
+          {stage === 'paste' && (
+            <>
+              <h2 className="sheet-title">Import a recipe</h2>
+              <p className="sheet-sub">Paste a link from a recipe site, Instagram reel, or TikTok video.</p>
+
+              <div className="url-input">
+                <Icon.Link />
+                <input
+                  ref={inputRef}
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://… or instagram.com/reel/…"
+                  value={url}
+                  onChange={e => setUrl(e.target.value)}
+                />
+                {url && <button className="search-clear" onClick={() => setUrl('')}>×</button>}
+              </div>
+
+              <div className="source-detect-row">
+                <span className={'detect-pill ' + (platform === 'web' ? 'on' : '')}>
+                  <Icon.Globe /> Recipe sites
+                </span>
+                <span className={'detect-pill ' + (platform === 'instagram' ? 'on' : '')}>
+                  <Icon.InstagramIcon /> Instagram
+                </span>
+                <span className={'detect-pill ' + (platform === 'tiktok' ? 'on' : '')}>
+                  <Icon.TikTokIcon /> TikTok
+                </span>
+              </div>
+
+              {showAnalysis && (
+                <div className="analysis-row">
+                  <p className="analysis-label">How should we extract it?</p>
+                  <div className="analysis-options">
+                    {[
+                      { v: 'auto',   label: 'Smart' },
+                      { v: 'audio',  label: 'Audio only' },
+                      { v: 'gemini', label: 'Full video' },
+                    ].map(opt => (
+                      <button
+                        key={opt.v}
+                        className={'chip ' + (analysis === opt.v ? 'on' : '')}
+                        onClick={() => setAnalysis(opt.v)}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {err && <div className="error-box">{err}</div>}
+
+              <button className="primary-btn" disabled={!trimmedUrl || busy} onClick={startDetect}>
+                {busy ? <><span className="spinner on-accent" /> Starting…</> : 'Detect & import'}
+              </button>
+            </>
+          )}
+
+          {stage === 'detecting' && (
+            <div className="detecting">
+              <div className="detect-orbit">
+                <div className="orbit-ring" />
+                <div className="orbit-ring r2" />
+                <div className="orbit-emoji">🍳</div>
+              </div>
+              <h2 className="sheet-title">Reading the recipe…</h2>
+              <p className="sheet-sub">{progress || (isVideoUrl(trimmedUrl) ? 'Reels usually take 15–30 seconds.' : 'Almost there.')}</p>
+              <ul className="detect-steps">
+                <li className="d-step done">Source detected: <b>{platform === 'instagram' ? 'Instagram' : platform === 'tiktok' ? 'TikTok' : urlHost(trimmedUrl)}</b></li>
+                {isVideoUrl(trimmedUrl) ? (
+                  <>
+                    <li className={'d-step ' + (progress && /resolving|downloading|fetching/i.test(progress) ? 'done' : '')}>Fetching video</li>
+                    <li className={'d-step ' + (progress && /transcrib|whisper|gemini/i.test(progress) ? 'done' : '')}>Transcribing audio</li>
+                    <li className={'d-step ' + (progress && /consolidat|saved/i.test(progress) ? 'done' : '')}>Extracting recipe</li>
+                  </>
+                ) : (
+                  <>
+                    <li className="d-step done">Fetching page</li>
+                    <li className="d-step done">Parsing structured data</li>
+                  </>
+                )}
+              </ul>
+            </div>
+          )}
+
+          {stage === 'preview' && preview && (
+            <>
+              <h2 className="sheet-title">Looks good?</h2>
+              <p className="sheet-sub">We pulled this. You can edit anytime after saving.</p>
+              <div className="preview-card">
+                <div className="preview-media">
+                  <RecipeMedia recipe={preview} />
+                </div>
+                <div className="preview-body">
+                  <h3>{preview.title}</h3>
+                  <div style={{marginBottom: 8}}>
+                    <SourceBadge url={preview.sourceUrl} />
+                  </div>
+                  <div className="preview-stats">
+                    <span><b>{preview.ingredients.length}</b> ingredients</span>
+                    <span><b>{preview.instructions.length}</b> steps</span>
+                    {timeLabel(preview) && <span><b>{timeLabel(preview)}</b></span>}
+                  </div>
+                </div>
+              </div>
+              {err && <div className="error-box">{err}</div>}
+              <div className="sheet-actions">
+                <button className="ghost-btn" onClick={() => setStage('paste')}>Back</button>
+                <button className="primary-btn" onClick={doSave} disabled={busy} style={{flex: 1}}>
+                  {busy ? <><span className="spinner on-accent" /> Saving…</> : 'Save to library'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {stage === 'error' && (
+            <>
+              <h2 className="sheet-title">Couldn't import</h2>
+              <p className="sheet-sub">{err}</p>
+              <div className="sheet-actions">
+                <button className="ghost-btn" onClick={onClose}>Close</button>
+                <button className="primary-btn" onClick={() => { setErr(null); setStage('paste'); }} style={{flex: 1}}>Try again</button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1256,31 +1995,27 @@
   function App() {
     const [unlocked, setUnlocked] = useState(!!localStorage.getItem(PASSCODE_KEY));
     const [recipes, setRecipes] = useState(() => loadCache() || []);
-    const [view, setView] = useState({ name: 'list' });
-    const [query, setQuery] = useState('');
+    const [search, setSearch] = useState('');
     const [tag, setTag] = useState('');
-    const [loadingList, setLoadingList] = useState(false);
+    const [openId, setOpenId] = useState(null);
+    const [showImport, setShowImport] = useState(false);
+    const [editingId, setEditingId] = useState(null);
     const [showToast, toastNode] = useToast();
 
     const refresh = useCallback(async () => {
-      setLoadingList(true);
       try {
-        const { recipes } = await api.list();
-        setRecipes(recipes);
-        saveCache(recipes);
+        const { recipes: fresh } = await api.list();
+        setRecipes(fresh);
+        saveCache(fresh);
       } catch (e) {
         if (e.message !== 'unauthorized') showToast('Could not load recipes: ' + e.message, 'error');
-      } finally {
-        setLoadingList(false);
       }
     }, [showToast]);
 
     useEffect(() => { if (unlocked) refresh(); }, [unlocked, refresh]);
 
-    const openRecipe = (id) => setView({ name: 'detail', id });
-    const goAdd      = () => setView({ name: 'add' });
-    const goEdit     = (id) => setView({ name: 'edit', id });
-    const goList     = () => setView({ name: 'list' });
+    const openRecipe = (r) => setOpenId(r.id);
+    const closeRecipe = () => setOpenId(null);
 
     const saveRecipe = async (recipe) => {
       const saved = await api.save(recipe.id, recipe);
@@ -1303,7 +2038,7 @@
           return next;
         });
         showToast('Recipe deleted');
-        goList();
+        closeRecipe();
       } catch (e) {
         showToast('Delete failed: ' + e.message, 'error');
       }
@@ -1311,62 +2046,66 @@
 
     if (!unlocked) return <PasscodeGate onUnlock={() => setUnlocked(true)} />;
 
-    let body;
-    if (view.name === 'list') {
-      body = <ListView recipes={recipes} onOpen={openRecipe} onAdd={goAdd}
-                       query={query} setQuery={setQuery} tag={tag} setTag={setTag} />;
-    } else if (view.name === 'add') {
-      body = <AddView
-        onCancel={goList}
-        onSaved={(r) => {
-          setRecipes(rs => { const next = [r, ...rs.filter(x => x.id !== r.id)]; saveCache(next); return next; });
-          showToast('Saved to Dropbox');
-          openRecipe(r.id);
-        }}
-        onVideoExtracted={async (recipeId) => {
-          // Worker already saved the recipe to Dropbox; refresh and navigate.
-          showToast('Recipe extracted');
-          try {
-            const fresh = await api.get(recipeId);
-            setRecipes(rs => {
-              const next = [fresh, ...rs.filter(x => x.id !== fresh.id)];
-              saveCache(next);
-              return next;
-            });
-            openRecipe(recipeId);
-          } catch (e) {
-            // Fall back to a full list refresh.
-            await refresh();
-            openRecipe(recipeId);
-          }
-        }}
-      />;
-    } else if (view.name === 'edit') {
-      const r = recipes.find(x => x.id === view.id);
-      if (!r) { goList(); return null; }
-      body = <AddView existing={r} onCancel={() => openRecipe(r.id)} onSaved={(saved) => { setRecipes(rs => { const next = rs.map(x => x.id === saved.id ? saved : x); saveCache(next); return next; }); showToast('Updated'); openRecipe(saved.id); }} />;
-    } else if (view.name === 'detail') {
-      const r = recipes.find(x => x.id === view.id);
-      if (!r) { goList(); return null; }
-      body = <DetailView
-        recipe={r}
-        onBack={goList}
-        onEdit={() => goEdit(r.id)}
-        onDelete={() => deleteRecipe(r.id)}
-        onSave={async (next) => {
-          try {
-            const saved = await api.save(next.id, next);
-            setRecipes(rs => { const out = rs.map(x => x.id === saved.id ? saved : x); saveCache(out); return out; });
-          } catch (e) {
-            showToast('Could not save notes: ' + e.message, 'error');
-          }
-        }}
-      />;
-    }
+    const openRecipeObj = recipes.find(r => r.id === openId);
+    const editingRecipe = recipes.find(r => r.id === editingId);
 
     return (
-      <div className="app">
-        {body}
+      <div className="app-root">
+        <LibraryScreen
+          recipes={recipes}
+          search={search} setSearch={setSearch}
+          tag={tag} setTag={setTag}
+          onOpen={openRecipe}
+          onOpenImport={() => setShowImport(true)}
+        />
+
+        {openRecipeObj && !editingRecipe && (
+          <DetailScreen
+            recipe={openRecipeObj}
+            onClose={closeRecipe}
+            onSave={saveRecipe}
+            onDelete={() => deleteRecipe(openRecipeObj.id)}
+            onEdit={() => setEditingId(openRecipeObj.id)}
+          />
+        )}
+
+        {editingRecipe && (
+          <EditForm
+            recipe={editingRecipe}
+            onCancel={() => setEditingId(null)}
+            onSave={async (next) => {
+              const saved = await saveRecipe(next);
+              setEditingId(null);
+              showToast('Updated');
+              return saved;
+            }}
+          />
+        )}
+
+        {showImport && (
+          <ImportSheet
+            onClose={() => setShowImport(false)}
+            showToast={showToast}
+            onPreviewSave={async (recipe) => {
+              const saved = await saveRecipe(recipe);
+              setShowImport(false);
+              setOpenId(saved.id);
+              showToast('Saved to your library');
+              return saved;
+            }}
+            onImported={(saved) => {
+              setRecipes(rs => {
+                const next = [saved, ...rs.filter(x => x.id !== saved.id)];
+                saveCache(next);
+                return next;
+              });
+              setShowImport(false);
+              setOpenId(saved.id);
+              showToast('Recipe imported');
+            }}
+          />
+        )}
+
         {toastNode}
       </div>
     );

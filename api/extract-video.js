@@ -62,19 +62,35 @@ export default async function handler(req, res) {
   try {
     // Persist the job record so /api/job-status can read it back.
     await dbxWriteJson(`/jobs/job-${jobId}.json`, job);
+  } catch (e) {
+    console.error('[extract-video] could not write job record:', e);
+    return json(res, 500, { error: 'could not queue job' });
+  }
 
+  try {
     // Fire the Inngest event. Frames are inlined into the event payload.
     // Inngest accepts up to ~512KB events; 6 small JPEGs (~50KB each) fit.
     await inngest.send({
       name: 'recipes/video.extract',
       data: { jobId, url, analysis, frames },
     });
-
-    return json(res, 202, { jobId });
   } catch (e) {
-    console.error('[extract-video] kickoff failed:', e);
-    return json(res, 500, { error: e.message || 'kickoff failed' });
+    // The job record exists but the event failed to dispatch. Mark the job
+    // as errored immediately so the client's polling loop sees a real error
+    // instead of waiting forever on "Queued".
+    console.error('[extract-video] inngest.send failed:', e);
+    try {
+      await dbxWriteJson(`/jobs/job-${jobId}.json`, {
+        ...job,
+        status: 'error',
+        error: 'Could not dispatch worker job: ' + (e.message || 'unknown'),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch {}
+    return json(res, 500, { error: 'could not dispatch job', jobId });
   }
+
+  return json(res, 202, { jobId });
 }
 
 function json(res, status, body) {

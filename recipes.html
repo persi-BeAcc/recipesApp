@@ -1065,6 +1065,71 @@
       margin: 0 0 18px;
     }
 
+    /* Lazy video poster + play overlay */
+    .video-poster-btn {
+      position: relative;
+      display: block;
+      width: 100%;
+      height: auto;
+      padding: 0;
+      border: 0;
+      background: #000;
+      cursor: pointer;
+      overflow: hidden;
+      transition: transform 200ms;
+    }
+    .video-poster-btn:active { transform: scale(0.997); }
+    .video-poster-img {
+      width: 100%;
+      height: auto;
+      max-height: 78vh;
+      object-fit: contain;
+      display: block;
+      background: #000;
+    }
+    .video-poster-empty {
+      width: 100%;
+      aspect-ratio: 9 / 16;
+      max-height: 78vh;
+      background: linear-gradient(180deg, oklch(0.30 0.01 70), oklch(0.18 0.01 70));
+    }
+    .video-play-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(180deg, oklch(0 0 0 / 0.05), oklch(0 0 0 / 0.32));
+      pointer-events: none;
+    }
+    .video-play-button {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: oklch(1 0 0 / 0.92);
+      color: var(--accent);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 4px 14px oklch(0 0 0 / 0.32);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding-left: 4px;  /* optical centering */
+      transition: transform 160ms;
+    }
+    .video-poster-btn:hover .video-play-button { transform: scale(1.05); }
+    .video-error-banner {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      background: oklch(0.50 0.16 25);
+      color: oklch(0.99 0 0);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+    }
+
     /* ---------- SHEETS ---------- */
     .sheet-overlay {
       position: fixed;
@@ -1463,7 +1528,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <div class="version" id="version">v2026.05.02.11</div>
+  <div class="version" id="version">v2026.05.02.12</div>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1480,7 +1545,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.11';
+  const APP_VERSION       = 'v2026.05.02.12';
   const PASSCODE_KEY      = 'recipes-passcode';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY       = 'recipes-checked-v1';
@@ -1536,6 +1601,24 @@
     try { return new URL(url).hostname.replace(/^www\./, ''); }
     catch { return ''; }
   }
+  // Normalize URLs for duplicate-detection. Strips tracking params, trailing
+  // slash, and the URL fragment, so an IG reel pasted with `?igsh=...` query
+  // matches the same reel pasted clean.
+  function normalizeUrl(u) {
+    if (!u) return '';
+    try {
+      const p = new URL(u);
+      p.hash = '';
+      const drop = ['igsh', 'igshid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', '_t', '_r'];
+      for (const k of drop) p.searchParams.delete(k);
+      let s = p.toString();
+      // Strip trailing slash on path (preserve query if present)
+      s = s.replace(/\/(\?|$)/, '$1');
+      return s.toLowerCase();
+    } catch {
+      return String(u).trim().toLowerCase();
+    }
+  }
 
   // ---------- Helpers ----------
   function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -1567,6 +1650,7 @@
       'whisper+claude':         'Audio transcript (Whisper) + AI',
       'whisper+claude+frames':  'Audio + visible text frames + AI',
       'gemini':                 'Full video (Gemini)',
+      'gemini-fallback':        'Full video (silent reel auto-fallback)',
     };
     return map[id] || id;
   }
@@ -2163,7 +2247,10 @@
     const toggleFav = async () => {
       const next = !favorite;
       setFavorite(next);
-      try { await onSave({ ...recipe, favorite: next }); } catch {}
+      // Merge the rest of the local DetailScreen state (notes, rating, cooked)
+      // so we don't trample unsaved edits from the Notes tab.
+      personalDirty.current = false;
+      try { await onSave({ ...recipe, favorite: next, notes, rating, cooked }); } catch {}
     };
 
     const toggleCooking = async () => {
@@ -2190,13 +2277,18 @@
       if (hasLink) window.open(recipe.sourceUrl, '_blank', 'noopener');
     };
 
+    // Keep the latest persist-fn in a ref so the unmount cleanup below sees
+    // the freshest closure WITHOUT firing the cleanup on every keystroke
+    // (which would re-save on every character). The actual save trigger is
+    // the textarea's onBlur and toggleFav / startCooking explicit calls.
     const persistPersonal = useCallback(async () => {
       if (!personalDirty.current) return;
       personalDirty.current = false;
       try { await onSave({ ...recipe, notes, rating, favorite, cooked }); } catch {}
     }, [recipe, notes, rating, favorite, cooked, onSave]);
-
-    useEffect(() => () => { persistPersonal(); }, [persistPersonal]);
+    const persistRef = useRef(persistPersonal);
+    persistRef.current = persistPersonal;
+    useEffect(() => () => { persistRef.current(); }, []);  // unmount-only
 
     const tags = recipe.tags || [];
     const ingredients = recipe.ingredients || [];
@@ -2401,52 +2493,77 @@
     );
   }
 
-  // ---------- Archived video player (HTML5 <video>, plays inline) ----------
-  // Fetches a fresh Dropbox temp link on mount and feeds it into a native
-  // <video> tag. No iframe, no third-party JS, plays inline on iOS — and
-  // because the file lives in our Dropbox the video keeps working even if
-  // the original Instagram/TikTok reel is later deleted.
+  // ---------- Archived video player ----------
+  // Lazy: shows ONLY the thumbnail with a play overlay until the user taps it.
+  // Tap → fetch a fresh Dropbox temp link → swap to a real <video> that
+  // auto-plays. Saves bandwidth (no video bytes loaded for users who just
+  // want to read the recipe) and avoids the cost of minting temp links on
+  // every detail-view open.
   function ArchivedVideo({ recipeId, poster }) {
+    const [state, setState] = useState('idle');  // idle | loading | playing | error
     const [src, setSrc] = useState(null);
     const [err, setErr] = useState(null);
 
-    useEffect(() => {
-      let cancelled = false;
-      (async () => {
-        try {
-          const { url } = await api.videoLink(recipeId);
-          if (!cancelled) setSrc(url);
-        } catch (e) {
-          if (!cancelled) setErr(e.message || 'Could not load video');
-        }
-      })();
-      return () => { cancelled = true; };
-    }, [recipeId]);
+    const loadAndPlay = async () => {
+      if (state === 'loading' || state === 'playing') return;
+      setState('loading');
+      try {
+        const { url } = await api.videoLink(recipeId);
+        setSrc(url);
+        setState('playing');
+      } catch (e) {
+        setErr(e.message || 'Could not load video');
+        setState('error');
+      }
+    };
 
-    if (err) {
-      // Fall back to the poster image if temp link fails (rare)
-      return poster ? <img src={poster} alt="" /> : null;
+    if (state === 'playing' && src) {
+      return (
+        <video
+          src={src}
+          poster={poster || undefined}
+          controls
+          autoPlay
+          playsInline
+          preload="metadata"
+          style={{
+            width: '100%',
+            height: 'auto',
+            maxHeight: '78vh',
+            objectFit: 'contain',
+            display: 'block',
+            background: '#000',
+          }}
+        />
+      );
     }
-    if (!src) {
-      // Show the thumbnail while we mint the temp link (~200ms)
-      return poster ? <img src={poster} alt="" /> : <div style={{background: 'var(--bg-sunk)', width: '100%', height: '100%'}} />;
-    }
+
+    // Idle / loading / error — show the thumbnail with a play overlay.
     return (
-      <video
-        src={src}
-        poster={poster || undefined}
-        controls
-        playsInline
-        preload="metadata"
-        style={{
-          width: '100%',
-          height: 'auto',
-          maxHeight: '78vh',
-          objectFit: 'contain',
-          display: 'block',
-          background: '#000',
-        }}
-      />
+      <button
+        type="button"
+        className="video-poster-btn"
+        onClick={loadAndPlay}
+        aria-label="Play video"
+      >
+        {poster
+          ? <img src={poster} alt="" className="video-poster-img" />
+          : <div className="video-poster-empty" />}
+        <div className="video-play-overlay">
+          {state === 'loading' ? (
+            <span className="spinner on-accent" style={{width: 32, height: 32, borderWidth: 3}} />
+          ) : (
+            <span className="video-play-button" aria-hidden>
+              <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </span>
+          )}
+        </div>
+        {state === 'error' && (
+          <div className="video-error-banner">{err || 'Could not load video'}</div>
+        )}
+      </button>
     );
   }
 
@@ -2524,7 +2641,7 @@
     const addArrItem = (key) => setDraft(d => ({...d, [key]: [...(d[key] || []), '']}));
 
     const doSave = async () => {
-      if (!draft.title.trim()) { setErr('Title is required.'); return; }
+      if (!(draft.title || '').trim()) { setErr('Title is required.'); return; }
       setBusy(true); setErr(null);
       try {
         const saved = await onSave(draft);
@@ -2783,13 +2900,14 @@
   }
 
   // ---------- Import sheet ----------
-  function ImportSheet({ onClose, onImported, onPreviewSave, showToast }) {
-    const [stage, setStage] = useState('paste');  // paste | detecting | preview | error
+  function ImportSheet({ onClose, onImported, onPreviewSave, showToast, recipes, onOpenExisting }) {
+    const [stage, setStage] = useState('paste');  // paste | detecting | preview | duplicate | error
     const [url, setUrl] = useState('');
     const [analysis, setAnalysis] = useState('auto');
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState(null);
     const [preview, setPreview] = useState(null);
+    const [duplicate, setDuplicate] = useState(null);
     const [progress, setProgress] = useState('');
     const [jobId, setJobId] = useState(null);
     const inputRef = useRef(null);
@@ -2838,6 +2956,18 @@
     const startDetect = async () => {
       if (!trimmedUrl) return;
       setBusy(true); setErr(null);
+
+      // Duplicate detection: if a recipe with this same source URL already
+      // exists in the user's library, surface it instead of re-importing.
+      const normalized = normalizeUrl(trimmedUrl);
+      const existing = (recipes || []).find(r => r.sourceUrl && normalizeUrl(r.sourceUrl) === normalized);
+      if (existing) {
+        setDuplicate(existing);
+        setStage('duplicate');
+        setBusy(false);
+        return;
+      }
+
       try {
         if (isVideoUrl(trimmedUrl)) {
           const { jobId: id } = await api.extractVideo(trimmedUrl, analysis);
@@ -3025,6 +3155,33 @@
             </>
           )}
 
+          {stage === 'duplicate' && duplicate && (
+            <>
+              <h2 className="sheet-title">Already in your library</h2>
+              <p className="sheet-sub">You've already imported this recipe. Open it instead?</p>
+              <div className="preview-card">
+                <div className="preview-media">
+                  <RecipeMedia recipe={duplicate} />
+                </div>
+                <div className="preview-body">
+                  <h3>{duplicate.title || 'Untitled'}</h3>
+                  <div style={{marginBottom: 8}}>
+                    <SourceBadge url={duplicate.sourceUrl} />
+                  </div>
+                  <div className="preview-stats">
+                    <span><b>{(duplicate.ingredients || []).length}</b> ingredients</span>
+                    <span><b>{(duplicate.instructions || []).length}</b> steps</span>
+                    {timeLabel(duplicate) && <span><b>{timeLabel(duplicate)}</b></span>}
+                  </div>
+                </div>
+              </div>
+              <div className="sheet-actions">
+                <button className="ghost-btn" onClick={onClose}>Cancel</button>
+                <button className="primary-btn" onClick={() => onOpenExisting(duplicate)} style={{flex: 1}}>Open recipe</button>
+              </div>
+            </>
+          )}
+
           {stage === 'error' && (
             <>
               <h2 className="sheet-title">Couldn't import</h2>
@@ -3196,6 +3353,12 @@
           <ImportSheet
             onClose={() => setShowImport(false)}
             showToast={showToast}
+            recipes={recipes}
+            onOpenExisting={(existing) => {
+              setShowImport(false);
+              setOpenId(existing.id);
+              showToast('Already in your library');
+            }}
             onPreviewSave={async (recipe) => {
               const saved = await saveRecipe(recipe);
               setShowImport(false);

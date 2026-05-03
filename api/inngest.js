@@ -18,6 +18,8 @@ import {
 import {
   extractFromVideoUrl,
   extractFramesWithClaude,
+  resolveSocialVideo,
+  detectPlatform,
 } from '../lib/video-pipeline.js';
 import {
   extractFromText,
@@ -45,17 +47,29 @@ const extractVideoFn = inngest.createFunction(
     });
 
     try {
-      // The main extraction step. Runs the pipeline AND archives the mp4 to
-      // Dropbox if we got one — both inside the same step so the (heavy) mp4
-      // Buffer never crosses step boundaries (Inngest serializes step results).
-      // Returns a small JSON object with the recipe + optional videoPath.
-      const recipe = await step.run('extract', async () => {
+      // ----- Step 1: resolve the social URL via RapidAPI. -----
+      // Independent step so RapidAPI flakes (rate limits, transient 5xx)
+      // retry without redoing Whisper or Claude.
+      const platform = detectPlatform(url);
+      const reel = (platform === 'instagram' || platform === 'tiktok')
+        ? await step.run('resolve', async () => {
+            await updateJob(jobId, { progress: `Resolving ${platform} video` }).catch(() => {});
+            return resolveSocialVideo(url, platform);
+          })
+        : null;
+
+      // ----- Step 2: extract recipe + archive mp4. -----
+      // Runs the pipeline (caption-link → caption-only → Whisper → optional
+      // Gemini fallback) AND uploads the mp4 to Dropbox. The mp4 Buffer
+      // stays inside this single step so it never crosses Inngest's step-
+      // result serialization boundary (heavy buffers serialize badly).
+      // Retries here re-do Whisper + Claude but NOT RapidAPI.
+      const recipe = await step.run('extract-and-archive', async () => {
         let result;
         if (analysis === 'audio_frames' && Array.isArray(frames) && frames.length) {
-          // audio_frames mode: parallel Whisper + Claude vision, then merge.
           const [baseResult, frameNotes] = await Promise.all([
             extractFromVideoUrl({
-              url, analysis: 'audio',
+              url, analysis: 'audio', prefetchedReel: reel,
               onProgress: (msg) => updateJob(jobId, { progress: msg }).catch(() => {}),
             }),
             extractFramesWithClaude(frames),
@@ -81,14 +95,12 @@ const extractVideoFn = inngest.createFunction(
           }
         } else {
           result = await extractFromVideoUrl({
-            url, analysis,
+            url, analysis, prefetchedReel: reel,
             onProgress: (msg) => updateJob(jobId, { progress: msg }).catch(() => {}),
           });
         }
 
-        // result = { recipe, mp4Buffer? }
-        // If we have the mp4, archive it to Dropbox so the detail view can
-        // play it inline via HTML5 <video> (no IG embed redirect).
+        // Archive mp4 to Dropbox if we got one.
         let videoPath = null;
         if (result.mp4Buffer && result.mp4Buffer.length > 0) {
           await updateJob(jobId, { progress: 'Archiving video' }).catch(() => {});

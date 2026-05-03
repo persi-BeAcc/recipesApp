@@ -13,6 +13,7 @@ import { serve } from 'inngest/next';
 import {
   dbxReadJson,
   dbxWriteJson,
+  dbxUpload,
 } from '../lib/dropbox.js';
 import {
   extractFromVideoUrl,
@@ -44,41 +45,64 @@ const extractVideoFn = inngest.createFunction(
     });
 
     try {
-      // The main extraction step. Returns a recipe object.
+      // The main extraction step. Runs the pipeline AND archives the mp4 to
+      // Dropbox if we got one — both inside the same step so the (heavy) mp4
+      // Buffer never crosses step boundaries (Inngest serializes step results).
+      // Returns a small JSON object with the recipe + optional videoPath.
       const recipe = await step.run('extract', async () => {
-        // For audio_frames mode, run Claude vision in parallel with the
-        // rest of the pipeline so we don't block.
+        let result;
         if (analysis === 'audio_frames' && Array.isArray(frames) && frames.length) {
-          const [base, frameNotes] = await Promise.all([
+          // audio_frames mode: parallel Whisper + Claude vision, then merge.
+          const [baseResult, frameNotes] = await Promise.all([
             extractFromVideoUrl({
               url, analysis: 'audio',
               onProgress: (msg) => updateJob(jobId, { progress: msg }).catch(() => {}),
             }),
             extractFramesWithClaude(frames),
           ]);
-
-          if (!frameNotes) return base;
-
-          // Merge frame notes into the recipe via one more Claude pass.
-          const merged = await extractFromText({
-            transcript:  (base.instructions || []).join('\n'),  // round-trip for context
-            caption:     base.description || '',
-            frameNotes,
-            sourceUrl:   url,
+          if (frameNotes) {
+            const merged = await extractFromText({
+              transcript:  (baseResult.recipe.instructions || []).join('\n'),
+              caption:     baseResult.recipe.description || '',
+              frameNotes,
+              sourceUrl:   url,
+            });
+            result = {
+              recipe: {
+                ...baseResult.recipe,
+                ingredients:  merged.ingredients.length  ? merged.ingredients  : baseResult.recipe.ingredients,
+                instructions: merged.instructions.length ? merged.instructions : baseResult.recipe.instructions,
+                extractedBy:  baseResult.recipe.extractedBy + '+frames',
+              },
+              mp4Buffer: baseResult.mp4Buffer,
+            };
+          } else {
+            result = baseResult;
+          }
+        } else {
+          result = await extractFromVideoUrl({
+            url, analysis,
+            onProgress: (msg) => updateJob(jobId, { progress: msg }).catch(() => {}),
           });
-          return {
-            ...base,
-            // Prefer merged ingredients/instructions when they're richer.
-            ingredients:  merged.ingredients.length  ? merged.ingredients  : base.ingredients,
-            instructions: merged.instructions.length ? merged.instructions : base.instructions,
-            extractedBy:  base.extractedBy + '+frames',
-          };
         }
 
-        return extractFromVideoUrl({
-          url, analysis,
-          onProgress: (msg) => updateJob(jobId, { progress: msg }).catch(() => {}),
-        });
+        // result = { recipe, mp4Buffer? }
+        // If we have the mp4, archive it to Dropbox so the detail view can
+        // play it inline via HTML5 <video> (no IG embed redirect).
+        let videoPath = null;
+        if (result.mp4Buffer && result.mp4Buffer.length > 0) {
+          await updateJob(jobId, { progress: 'Archiving video' }).catch(() => {});
+          videoPath = `/videos/${jobId}.mp4`;
+          try {
+            await dbxUpload(videoPath, result.mp4Buffer);
+            console.log(`[archive] uploaded ${result.mp4Buffer.length} bytes to ${videoPath}`);
+          } catch (err) {
+            console.warn('[archive] dropbox upload failed:', err.message);
+            videoPath = null;
+          }
+        }
+
+        return { ...result.recipe, videoPath };
       });
 
       // Persist the recipe under a stable id and update the job.

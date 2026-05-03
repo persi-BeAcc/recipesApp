@@ -1952,7 +1952,7 @@
   // Replaces the old passcode gate. Each user OAuths to their own Dropbox;
   // the refresh token gets stored in localStorage by the OAuth callback page.
   function WelcomeScreen() {
-    const connect = () => { window.location.href = '/api/oauth?action=start'; };
+    const connect = () => { window.location.href = '/api/oauth/start'; };
     return (
       <div className="gate">
         <div className="gate-card">
@@ -3311,6 +3311,17 @@
       if (!trimmedUrl) return;
       setBusy(true); setErr(null);
 
+      // If they pasted a share URL (one of OUR /#share=... links), redirect
+      // them straight into the share-receive flow.
+      const shareMatch = trimmedUrl.match(/[#&]share=([^&]+)/);
+      if (shareMatch) {
+        // Hand off to the receive flow by setting the URL hash. The
+        // top-level boot effect will pick it up and surface the receive screen.
+        window.location.hash = 'share=' + shareMatch[1];
+        window.location.reload();
+        return;
+      }
+
       // Duplicate detection: if a recipe with this same source URL already
       // exists in the user's library, surface it instead of re-importing.
       const normalized = normalizeUrl(trimmedUrl);
@@ -3780,7 +3791,7 @@
             onSaved={() => {}}
           />
           <div style={{position: 'fixed', bottom: 24, left: 24, right: 24, maxWidth: 600, margin: '0 auto'}}>
-            <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth?action=start'; }} style={{width: '100%'}}>
+            <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth/start'; }} style={{width: '100%'}}>
               Connect Dropbox to save it
             </button>
           </div>

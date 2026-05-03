@@ -1,6 +1,6 @@
 {
-  "name": "Recipes",
-  "short_name": "Recipes",
+  "name": "My Kitchen",
+  "short_name": "My Kitchen",
   "description": "Your personal recipe collection — extracted from the web, synced via Dropbox.",
   "start_url": "/",
   "scope": "/",

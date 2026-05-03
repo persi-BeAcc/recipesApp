@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#e8eedc" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Recipes" />
+  <meta name="apple-mobile-web-app-title" content="My Kitchen" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
-  <title>Recipes</title>
+  <title>My Kitchen</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -54,6 +54,7 @@
     * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0;
+      height: 100%;
       font-family: var(--font-ui);
       background: var(--bg);
       color: var(--ink);
@@ -61,26 +62,27 @@
       text-rendering: optimizeLegibility;
       overscroll-behavior: none;
       touch-action: pan-y;
-      min-height: 100vh;
-    }
-    body {
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      overflow: hidden;
     }
     button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; padding: 0; }
     input, textarea { font-family: inherit; }
 
     /* ---------- APP SHELL ---------- */
+    /* App is locked to viewport height; only the inner scroll zone scrolls.
+       This keeps the header pinned without relying on `position: sticky` that
+       fights with iOS Safari's URL-bar hide-on-scroll. */
     .app-root {
       width: 100%;
       max-width: 720px;
       margin: 0 auto;
-      min-height: 100vh;
+      height: 100%;
       background: var(--bg);
       color: var(--ink);
       position: relative;
-      overflow-x: hidden;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
     }
     @media (min-width: 720px) {
       .app-root { box-shadow: 0 0 60px oklch(0 0 0 / 0.04); }
@@ -162,6 +164,72 @@
       flex-shrink: 0;
     }
 
+    .filter-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--bg-elev);
+      border: 1px solid var(--line-strong);
+      display: grid;
+      place-items: center;
+      position: relative;
+      color: var(--ink);
+      flex-shrink: 0;
+      transition: transform 160ms, background 160ms, border-color 160ms;
+    }
+    .filter-btn:active { transform: scale(0.94); }
+    .filter-btn:hover  { border-color: var(--ink-3); }
+    .filter-btn.has-active {
+      background: var(--accent);
+      color: oklch(0.99 0 0);
+      border-color: var(--accent);
+    }
+    .filter-count {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: var(--header-bg);
+      color: var(--header-ink);
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--bg-elev);
+      line-height: 1;
+    }
+    .filter-btn.has-active .filter-count {
+      background: oklch(0.99 0 0);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* Filter sheet sections */
+    .filter-section { margin-bottom: 18px; }
+    .filter-section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ink-3);
+      font-weight: 600;
+      margin: 0 0 10px;
+    }
+    .chip-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .sheet-bottom-actions {
+      position: sticky;
+      bottom: 0;
+      background: linear-gradient(to top, var(--bg) 70%, transparent);
+      padding: 16px 0 0;
+      margin-top: 8px;
+    }
+
     /* Active filter / tag chips below search */
     .active-chips {
       display: flex;
@@ -241,6 +309,43 @@
     }
 
     /* ---------- RECIPE CARD ---------- */
+    .card-wrap {
+      position: relative;
+      border-radius: var(--radius-card);
+      overflow: hidden;
+    }
+    .swipe-bg {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: oklch(0.99 0 0);
+      border-radius: var(--radius-card);
+      z-index: 0;
+      gap: 8px;
+    }
+    .swipe-bg-fav {
+      background: oklch(0.62 0.13 18);
+      justify-content: flex-start;
+    }
+    .swipe-bg-del {
+      background: oklch(0.50 0.16 25);
+      justify-content: flex-end;
+    }
+    .flash-favorite { animation: flash-fav 600ms ease; }
+    .flash-delete { animation: flash-del 600ms ease forwards; }
+    @keyframes flash-fav {
+      0%, 100% { transform: scale(1); }
+      30% { transform: scale(1.04); }
+    }
+    @keyframes flash-del {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(0.85); opacity: 0; }
+    }
+
     .recipe-card {
       position: relative;
       background: var(--bg-elev);
@@ -415,6 +520,91 @@
       color: var(--ink-3);
     }
     .empty-emoji { font-size: 36px; margin-bottom: 12px; opacity: 0.6; }
+
+    /* Quick actions sheet */
+    .quick-overlay { align-items: center; }
+    .quick-sheet {
+      width: calc(100% - 36px);
+      max-width: 380px;
+      background: var(--bg-elev);
+      border-radius: 14px;
+      overflow: hidden;
+      animation: quick-in 240ms cubic-bezier(.2,.7,.3,1) both;
+      box-shadow: 0 16px 40px oklch(0 0 0 / 0.20);
+      border: 1px solid var(--line);
+    }
+    @keyframes quick-in {
+      from { transform: scale(0.95); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+    .quick-recipe {
+      display: flex;
+      gap: 12px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      align-items: center;
+    }
+    .quick-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--bg-sunk);
+    }
+    .quick-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .quick-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 2px;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .quick-meta {
+      font-size: 11.5px;
+      color: var(--ink-3);
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .quick-actions {
+      display: flex;
+      flex-direction: column;
+    }
+    .quick-action {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 13px 16px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--ink);
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      transition: background 160ms;
+    }
+    .quick-action:last-child { border-bottom: none; }
+    .quick-action:active { background: var(--bg-sunk); }
+    .quick-action.danger { color: oklch(0.50 0.16 25); }
+    .qa-emoji { font-size: 15px; width: 22px; text-align: center; opacity: 0.85; }
+
+    /* Pull-to-refresh */
+    .pull-indicator {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      margin-top: -40px;
+      color: var(--ink-2);
+    }
+    .pull-spinner.spin { animation: spin 800ms linear infinite; }
     .empty h3 {
       font-family: var(--font-display);
       font-size: 17px;
@@ -427,6 +617,9 @@
     .btn-text { color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 12px; }
 
     /* ---------- DETAIL ---------- */
+    /* Single scroll container — hero is in document flow so it scrolls
+       with the content, revealing more text as the user scrolls down.
+       Close/heart buttons + action bar are sticky to viewport. */
     .detail-screen {
       position: fixed;
       inset: 0;
@@ -434,11 +627,13 @@
       margin: 0 auto;
       background: var(--bg);
       z-index: 30;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
       animation: detail-in 280ms cubic-bezier(.2,.7,.3,1);
     }
+    .detail-screen::-webkit-scrollbar { display: none; }
     @keyframes detail-in {
       from { transform: translateY(16px); opacity: 0; }
       to   { transform: translateY(0); opacity: 1; }
@@ -447,7 +642,6 @@
     .detail-hero {
       position: relative;
       width: 100%;
-      flex-shrink: 0;
       overflow: hidden;
       aspect-ratio: 1.1;
       max-height: 60vh;
@@ -466,8 +660,8 @@
       background: linear-gradient(to bottom, transparent, oklch(0.16 0.02 70 / 0.62));
       pointer-events: none;
     }
-    .detail-close, .detail-fav {
-      position: absolute;
+    .detail-close, .detail-fav, .detail-source-btn {
+      position: fixed;
       top: calc(16px + env(safe-area-inset-top));
       width: 36px;
       height: 36px;
@@ -479,12 +673,15 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       transition: transform 160ms;
-      z-index: 3;
+      z-index: 35;
     }
-    .detail-close { left: 16px; }
-    .detail-fav   { right: 16px; }
-    .detail-close:active, .detail-fav:active { transform: scale(0.9); }
+    /* Use CSS calc to position relative to viewport center within max-width frame */
+    .detail-close      { left:  max(16px, calc((100vw - 720px) / 2 + 16px)); }
+    .detail-source-btn { left:  max(64px, calc((100vw - 720px) / 2 + 64px)); }
+    .detail-fav        { right: max(16px, calc((100vw - 720px) / 2 + 16px)); }
+    .detail-close:active, .detail-fav:active, .detail-source-btn:active { transform: scale(0.9); }
     .detail-fav.on { color: var(--accent); }
+    .detail-source-btn { color: var(--ink-2); }
 
     .detail-source-row {
       position: absolute;
@@ -494,6 +691,7 @@
       align-items: center;
       gap: 8px;
       z-index: 2;
+      pointer-events: none;
     }
     .detail-author {
       color: oklch(0.99 0 0);
@@ -503,17 +701,13 @@
     }
 
     .detail-body {
-      flex: 1;
-      overflow-y: auto;
       padding: 22px 22px 0;
       background: var(--bg);
       border-radius: 18px 18px 0 0;
       margin-top: -18px;
       position: relative;
       z-index: 2;
-      scrollbar-width: none;
     }
-    .detail-body::-webkit-scrollbar { display: none; }
     .detail-title {
       font-family: var(--font-display);
       font-size: 24px;
@@ -731,11 +925,27 @@
       position: sticky;
       bottom: 0;
       padding: 12px 18px calc(18px + env(safe-area-inset-bottom));
-      background: linear-gradient(to top, var(--bg) 70%, transparent);
+      background: linear-gradient(to top, var(--bg) 60%, transparent);
       display: flex;
       gap: 10px;
       z-index: 3;
     }
+    .cook-btn {
+      flex: 1;
+      height: 46px;
+      background: var(--accent);
+      color: oklch(0.99 0 0);
+      border-radius: 10px;
+      font-size: 14.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      transition: transform 160ms;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .cook-btn:active { transform: scale(0.98); }
     .detail-actions-bar .ghost-btn {
       flex: 0 0 auto;
       padding: 0 16px;
@@ -845,6 +1055,27 @@
       margin-bottom: 18px;
       flex-wrap: wrap;
     }
+
+    .sample-block { margin-bottom: 18px; }
+    .sample-label {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ink-3);
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+    .sample-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .sample-chip {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: var(--bg-sunk);
+      border: 1px solid var(--line);
+      color: var(--ink-2);
+    }
+    .sample-chip:hover { border-color: var(--ink-3); }
     .detect-pill {
       display: inline-flex;
       align-items: center;
@@ -1074,13 +1305,15 @@
     /* ---------- VERSION CHIP ---------- */
     .version {
       position: fixed;
-      bottom: max(6px, env(safe-area-inset-bottom));
-      left: 8px;
-      font-size: 9px;
-      color: var(--line-strong);
-      letter-spacing: 0.05em;
+      bottom: max(8px, calc(env(safe-area-inset-bottom) + 2px));
+      left: 10px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.04em;
+      opacity: 0.55;
       pointer-events: none;
-      z-index: 1;
+      z-index: 41;
     }
 
     /* ---------- SPINNER ---------- */
@@ -1132,7 +1365,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <div class="version" id="version">v2026.05.02.3</div>
+  <div class="version" id="version">v2026.05.02.4</div>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1149,7 +1382,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.3';
+  const APP_VERSION       = 'v2026.05.02.4';
   const PASSCODE_KEY      = 'recipes-passcode';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY       = 'recipes-checked-v1';
@@ -1293,7 +1526,7 @@
     return (
       <div className="gate">
         <form className="gate-card" onSubmit={submit}>
-          <div className="brand">Recipes<span className="dot">.</span></div>
+          <div className="brand">My Kitchen<span className="dot">.</span></div>
           <p>Enter the household passcode</p>
           <input type="password" value={val} onChange={e => setVal(e.target.value)} autoFocus autoComplete="off" />
           {err && <div className="error-box" style={{textAlign:'left'}}>{err}</div>}
@@ -1305,8 +1538,59 @@
     );
   }
 
+  // ---------- Time bucket helpers (filter sheet uses these) ----------
+  const TIME_BUCKETS = [
+    { id: 'fast',    label: 'Under 30 min', test: m => m > 0 && m <= 30 },
+    { id: 'medium',  label: '30–60 min',    test: m => m > 30 && m <= 60 },
+    { id: 'long',    label: 'Over 1 hr',    test: m => m > 60 },
+  ];
+  function recipeMinutes(r) {
+    // Heuristic: parse "1h 30m" / "45m" / "2h" / numeric strings
+    const candidate = r.totalTime || r.cookTime || r.prepTime || '';
+    if (!candidate) return 0;
+    const s = String(candidate).toLowerCase();
+    const hMatch = s.match(/(\d+)\s*h/);
+    const mMatch = s.match(/(\d+)\s*m(?!o)/); // m but not "month/min" word
+    const numMatch = !hMatch && !mMatch ? s.match(/^(\d+)/) : null;
+    return (hMatch ? parseInt(hMatch[1]) * 60 : 0)
+         + (mMatch ? parseInt(mMatch[1]) : 0)
+         + (numMatch ? parseInt(numMatch[1]) : 0);
+  }
+  const SOURCE_OPTIONS = [
+    { id: 'web',       label: 'Recipe sites' },
+    { id: 'instagram', label: 'Instagram' },
+    { id: 'tiktok',    label: 'TikTok' },
+  ];
+
+  function emptyFilters() {
+    return { tags: [], time: [], source: [], favorite: false };
+  }
+  function filterCount(f) {
+    return f.tags.length + f.time.length + f.source.length + (f.favorite ? 1 : 0);
+  }
+
   // ---------- Library ----------
-  function LibraryScreen({ recipes, search, setSearch, tag, setTag, onOpen, onOpenImport }) {
+  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onLongPress, onSwipeAction, onRefresh, refreshing }) {
+    const [pullY, setPullY] = useState(0);
+    const startY = useRef(null);
+    const scrollerRef = useRef(null);
+
+    const onPointerDownPull = (e) => {
+      if (scrollerRef.current && scrollerRef.current.scrollTop <= 0) {
+        startY.current = e.clientY;
+      }
+    };
+    const onPointerMovePull = (e) => {
+      if (startY.current == null) return;
+      const dy = e.clientY - startY.current;
+      if (dy > 0) setPullY(Math.min(dy * 0.5, 90));
+    };
+    const onPointerUpPull = () => {
+      if (pullY > 60) onRefresh?.();
+      setPullY(0);
+      startY.current = null;
+    };
+
     const allTags = useMemo(() => {
       const set = new Set();
       recipes.forEach(r => (r.tags || []).forEach(t => set.add(t)));
@@ -1316,7 +1600,17 @@
     const visible = useMemo(() => {
       const q = (search || '').trim().toLowerCase();
       return recipes.filter(r => {
-        if (tag && !(r.tags || []).includes(tag)) return false;
+        if (filters.tags.length && !filters.tags.some(t => (r.tags || []).includes(t))) return false;
+        if (filters.source.length) {
+          const p = r.sourceUrl ? detectPlatform(r.sourceUrl) : 'web';
+          if (!filters.source.includes(p)) return false;
+        }
+        if (filters.time.length) {
+          const mins = recipeMinutes(r);
+          const buckets = TIME_BUCKETS.filter(b => filters.time.includes(b.id));
+          if (!buckets.some(b => b.test(mins))) return false;
+        }
+        if (filters.favorite && !r.favorite) return false;
         if (!q) return true;
         const hay = [
           r.title, r.description, r.author,
@@ -1326,13 +1620,35 @@
         ].join(' ').toLowerCase();
         return hay.includes(q);
       }).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-    }, [recipes, search, tag]);
+    }, [recipes, search, filters]);
+
+    const fCount = filterCount(filters);
+
+    const removeFilter = (group, val) => {
+      setFilters(prev => {
+        if (group === 'favorite') return { ...prev, favorite: false };
+        return { ...prev, [group]: prev[group].filter(v => v !== val) };
+      });
+    };
+
+    // Active chips below the search bar (only what's APPLIED, not all tags)
+    const activeChips = [];
+    filters.tags.forEach(t   => activeChips.push({ key: 'tag-' + t,    group: 'tags',   val: t, label: t }));
+    filters.source.forEach(s => {
+      const opt = SOURCE_OPTIONS.find(o => o.id === s);
+      activeChips.push({ key: 'src-' + s, group: 'source', val: s, label: opt ? opt.label : s });
+    });
+    filters.time.forEach(t => {
+      const opt = TIME_BUCKETS.find(o => o.id === t);
+      activeChips.push({ key: 'time-' + t, group: 'time', val: t, label: opt ? opt.label : t });
+    });
+    if (filters.favorite) activeChips.push({ key: 'fav', group: 'favorite', val: true, label: '♥ Favorites' });
 
     return (
       <div className="screen library-screen">
         <div className="lib-header">
           <div className="brand-row">
-            <div className="brand">Recipes<span className="dot">.</span></div>
+            <div className="brand">My Kitchen<span className="dot">.</span></div>
             <div className="header-count">
               {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
             </div>
@@ -1348,20 +1664,50 @@
               />
               {search && <button type="button" className="search-clear" onClick={() => setSearch('')} aria-label="Clear">×</button>}
             </label>
+            <button
+              className={'filter-btn ' + (fCount > 0 ? 'has-active' : '')}
+              onClick={onOpenFilter}
+              aria-label="Filters"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M4 6h16M7 12h10M10 18h4" />
+              </svg>
+              {fCount > 0 && <span className="filter-count">{fCount}</span>}
+            </button>
           </div>
-          {allTags.length > 0 && (
+          {activeChips.length > 0 && (
             <div className="active-chips">
-              <button className={'chip ' + (!tag ? 'on' : '')} onClick={() => setTag('')}>All</button>
-              {allTags.map(t => (
-                <button key={t} className={'chip ' + (tag === t ? 'on' : '')} onClick={() => setTag(t === tag ? '' : t)}>
-                  {t}
+              {activeChips.map(c => (
+                <button key={c.key} className="chip chip-active" onClick={() => removeFilter(c.group, c.val)}>
+                  {c.label}
+                  <span className="chip-x">×</span>
                 </button>
               ))}
+              <button className="chip chip-clear" onClick={() => setFilters(emptyFilters())}>Clear all</button>
             </div>
           )}
         </div>
 
-        <div className="lib-scroll">
+        <div
+          className="lib-scroll"
+          ref={scrollerRef}
+          onPointerDown={onPointerDownPull}
+          onPointerMove={onPointerMovePull}
+          onPointerUp={onPointerUpPull}
+          onPointerCancel={onPointerUpPull}
+          style={{ paddingTop: `${pullY}px`, transition: pullY === 0 ? 'padding-top 200ms' : 'none' }}
+        >
+          {(pullY > 0 || refreshing) && (
+            <div className="pull-indicator" style={{ opacity: refreshing ? 1 : (pullY / 60 || 0.4) }}>
+              <div className={'pull-spinner ' + (refreshing ? 'spin' : '')} style={{ transform: `rotate(${pullY * 4}deg)` }}>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d="M21 12a9 9 0 11-3-6.7" />
+                  <path d="M21 4v5h-5" />
+                </svg>
+              </div>
+            </div>
+          )}
+
           {recipes.length === 0 ? (
             <div className="empty">
               <div className="empty-emoji">🍳</div>
@@ -1372,14 +1718,19 @@
             <div className="empty">
               <div className="empty-emoji">🔍</div>
               <h3>No matches</h3>
-              <p>Try a different search or clear the tag.</p>
-              <button className="btn-text" onClick={() => { setSearch(''); setTag(''); }}>Clear filters</button>
+              <p>Try a different search or clear filters.</p>
+              <button className="btn-text" onClick={() => { setSearch(''); setFilters(emptyFilters()); }}>Clear filters</button>
             </div>
           ) : (
             <div className="grid">
               {visible.map((r, i) => (
                 <div className="grid-item" key={r.id} style={{ animationDelay: `${Math.min(i, 12) * 28}ms` }}>
-                  <RecipeCard recipe={r} onOpen={onOpen} />
+                  <RecipeCard
+                    recipe={r}
+                    onOpen={onOpen}
+                    onLongPress={onLongPress}
+                    onSwipeAction={onSwipeAction}
+                  />
                 </div>
               ))}
             </div>
@@ -1393,41 +1744,117 @@
     );
   }
 
-  function RecipeCard({ recipe, onOpen }) {
+  function RecipeCard({ recipe, onOpen, onLongPress, onSwipeAction }) {
+    const [pressed, setPressed] = useState(false);
+    const [swipeX, setSwipeX] = useState(0);
+    const [actionFlash, setActionFlash] = useState(null);
+    const startRef = useRef(null);
+    const longPressTimer = useRef(null);
+    const longPressFired = useRef(false);
+
     const platform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
     const sourceLabel = platform === 'instagram' ? 'IG' : platform === 'tiktok' ? 'TikTok' : (urlHost(recipe.sourceUrl).replace(/\.com$/,'') || '');
+
+    const onPointerDown = (e) => {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+      startRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+      longPressFired.current = false;
+      setPressed(true);
+      longPressTimer.current = setTimeout(() => {
+        longPressFired.current = true;
+        if (navigator.vibrate) navigator.vibrate(10);
+        onLongPress?.(recipe);
+      }, 480);
+    };
+    const onPointerMove = (e) => {
+      if (!startRef.current) return;
+      const dx = e.clientX - startRef.current.x;
+      const dy = e.clientY - startRef.current.y;
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) clearTimeout(longPressTimer.current);
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
+        setSwipeX(Math.max(-140, Math.min(140, dx)));
+      }
+    };
+    const onPointerUp = (e) => {
+      clearTimeout(longPressTimer.current);
+      setPressed(false);
+      if (!startRef.current) return;
+      const dx = e.clientX - startRef.current.x;
+      const dy = e.clientY - startRef.current.y;
+      const dt = Date.now() - startRef.current.t;
+      startRef.current = null;
+      if (Math.abs(swipeX) > 70) {
+        const action = swipeX > 0 ? 'favorite' : 'delete';
+        setActionFlash(action);
+        onSwipeAction?.(recipe, action);
+        setTimeout(() => setActionFlash(null), 600);
+        setSwipeX(0);
+        return;
+      }
+      setSwipeX(0);
+      if (!longPressFired.current && Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 400) {
+        onOpen?.(recipe);
+      }
+    };
+    const onPointerCancel = () => {
+      clearTimeout(longPressTimer.current);
+      setPressed(false);
+      setSwipeX(0);
+      startRef.current = null;
+    };
+
     return (
-      <article className="recipe-card" onClick={() => onOpen(recipe)}>
-        <div className="recipe-card-media">
-          <RecipeMedia recipe={recipe} />
-          {sourceLabel && (
-            <span className="source-corner">
-              {platform === 'instagram' ? <Icon.InstagramIcon /> : platform === 'tiktok' ? <Icon.TikTokIcon /> : <Icon.Globe />}
-              {sourceLabel}
-            </span>
-          )}
-          {recipe.favorite && (
-            <span className="fav-pill" aria-label="Favorite">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                <path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0112 6a5.5 5.5 0 019.5 6c-2.5 4.5-9.5 9-9.5 9z"/>
-              </svg>
-            </span>
-          )}
+      <div className={'card-wrap ' + (actionFlash ? 'flash-' + actionFlash : '')}>
+        <div className="swipe-bg swipe-bg-fav" aria-hidden>
+          <span style={{fontSize: 16}}>♥</span>
+          <span>{recipe.favorite ? 'Unfavorite' : 'Favorite'}</span>
         </div>
-        <div className="recipe-card-body">
-          <h3 className="recipe-card-title">{recipe.title || 'Untitled'}</h3>
-          <div className="recipe-card-meta">
-            {timeLabel(recipe) && (
-              <span className="time-badge">
-                <Icon.Clock />
-                {timeLabel(recipe)}
+        <div className="swipe-bg swipe-bg-del" aria-hidden>
+          <span>Delete</span>
+          <span style={{fontSize: 16}}>×</span>
+        </div>
+        <article
+          className={'recipe-card ' + (pressed ? 'pressed' : '')}
+          style={{
+            transform: `translateX(${swipeX}px) rotate(${swipeX * 0.04}deg)`,
+            transition: swipeX === 0 ? 'transform 280ms cubic-bezier(.2,.9,.3,1.2)' : 'none',
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+        >
+          <div className="recipe-card-media">
+            <RecipeMedia recipe={recipe} />
+            {sourceLabel && (
+              <span className="source-corner">
+                {platform === 'instagram' ? <Icon.InstagramIcon /> : platform === 'tiktok' ? <Icon.TikTokIcon /> : <Icon.Globe />}
+                {sourceLabel}
               </span>
             )}
-            {timeLabel(recipe) && recipe.servings && <span className="meta-sep" />}
-            {recipe.servings && <span className="time-badge" style={{textTransform:'lowercase'}}>{recipe.servings}</span>}
+            {recipe.favorite && (
+              <span className="fav-pill" aria-label="Favorite">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                  <path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0112 6a5.5 5.5 0 019.5 6c-2.5 4.5-9.5 9-9.5 9z"/>
+                </svg>
+              </span>
+            )}
           </div>
-        </div>
-      </article>
+          <div className="recipe-card-body">
+            <h3 className="recipe-card-title">{recipe.title || 'Untitled'}</h3>
+            <div className="recipe-card-meta">
+              {timeLabel(recipe) && (
+                <span className="time-badge">
+                  <Icon.Clock />
+                  {timeLabel(recipe)}
+                </span>
+              )}
+              {timeLabel(recipe) && recipe.servings && <span className="meta-sep" />}
+              {recipe.servings && <span className="time-badge" style={{textTransform:'lowercase'}}>{recipe.servings}</span>}
+            </div>
+          </div>
+        </article>
+      </div>
     );
   }
 
@@ -1439,10 +1866,12 @@
     const [notes, setNotes] = useState(recipe.notes || '');
     const [rating, setRating] = useState(recipe.rating || 0);
     const [favorite, setFavorite] = useState(!!recipe.favorite);
+    const [cooked, setCooked] = useState(recipe.cooked || 0);
     const personalDirty = useRef(false);
 
     const platform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
     const isSocial = platform === 'instagram' || platform === 'tiktok';
+    const hasLink  = !!recipe.sourceUrl;
 
     const toggleIng = (i) => {
       setCheckedIng(prev => {
@@ -1459,11 +1888,23 @@
       try { await onSave({ ...recipe, favorite: next }); } catch {}
     };
 
+    const startCooking = async () => {
+      setTab('steps');
+      setStepIdx(0);
+      const next = cooked + 1;
+      setCooked(next);
+      try { await onSave({ ...recipe, cooked: next, favorite }); } catch {}
+    };
+
+    const openSource = () => {
+      if (hasLink) window.open(recipe.sourceUrl, '_blank', 'noopener');
+    };
+
     const persistPersonal = useCallback(async () => {
       if (!personalDirty.current) return;
       personalDirty.current = false;
-      try { await onSave({ ...recipe, notes, rating, favorite }); } catch {}
-    }, [recipe, notes, rating, favorite, onSave]);
+      try { await onSave({ ...recipe, notes, rating, favorite, cooked }); } catch {}
+    }, [recipe, notes, rating, favorite, cooked, onSave]);
 
     useEffect(() => () => { persistPersonal(); }, [persistPersonal]);
 
@@ -1475,34 +1916,46 @@
 
     return (
       <div className="detail-screen">
-        <div className="detail-hero">
-          {isSocial
-            ? <SocialEmbed url={recipe.sourceUrl} platform={platform} fallbackImage={recipe.image} />
-            : <RecipeMedia recipe={recipe} />}
-          <div className="detail-hero-fade" />
-          <button className="detail-close" onClick={onClose} aria-label="Back"><Icon.Back /></button>
-          <button className={'detail-fav ' + (favorite ? 'on' : '')} onClick={toggleFav} aria-label="Favorite">
-            <Icon.Heart filled={favorite} />
+        <button className="detail-close" onClick={onClose} aria-label="Back"><Icon.Back /></button>
+        <button className={'detail-fav ' + (favorite ? 'on' : '')} onClick={toggleFav} aria-label="Favorite">
+          <Icon.Heart filled={favorite} />
+        </button>
+
+        {hasLink && !isSocial && (
+          <button className="detail-source-btn" onClick={openSource} aria-label={'View on ' + urlHost(recipe.sourceUrl)}>
+            <Icon.Link />
           </button>
-          {(recipe.author || recipe.sourceUrl) && (
-            <div className="detail-source-row">
-              <SourceBadge url={recipe.sourceUrl} size="lg" />
-              {recipe.author && <span className="detail-author">{recipe.author}</span>}
-            </div>
-          )}
-        </div>
+        )}
+
+        {isSocial ? (
+          <div className="detail-hero" style={{aspectRatio: 'auto', maxHeight: 'none'}}>
+            <SocialEmbed url={recipe.sourceUrl} platform={platform} fallbackImage={recipe.image} />
+          </div>
+        ) : (
+          <div className="detail-hero">
+            <RecipeMedia recipe={recipe} />
+            <div className="detail-hero-fade" />
+            {(recipe.author || recipe.sourceUrl) && (
+              <div className="detail-source-row">
+                <SourceBadge url={recipe.sourceUrl} size="lg" />
+                {recipe.author && <span className="detail-author">{recipe.author}</span>}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="detail-body">
           <h1 className="detail-title">{recipe.title || 'Untitled'}</h1>
           {recipe.description && <p className="detail-description">{recipe.description}</p>}
 
-          {(recipe.prepTime || recipe.cookTime || recipe.totalTime || recipe.servings) && (
+          {(recipe.prepTime || recipe.cookTime || recipe.totalTime || recipe.servings || cooked > 0) && (
             <div className="detail-meta-row">
               {recipe.prepTime  && <div className="meta-pill"><span className="meta-pill-icon">⏱</span> Prep {recipe.prepTime}</div>}
               {recipe.cookTime  && <div className="meta-pill"><span className="meta-pill-icon">🔥</span> Cook {recipe.cookTime}</div>}
               {!recipe.prepTime && !recipe.cookTime && recipe.totalTime &&
                 <div className="meta-pill"><span className="meta-pill-icon">⏱</span> {recipe.totalTime}</div>}
               {recipe.servings && <div className="meta-pill"><span className="meta-pill-icon">🍽</span> {recipe.servings}</div>}
+              {cooked > 0 && <div className="meta-pill"><span className="meta-pill-icon">🍴</span> cooked {cooked}×</div>}
             </div>
           )}
 
@@ -1580,13 +2033,18 @@
           )}
 
           <div style={{height: 100}} />
-        </div>
 
-        <div className="detail-actions-bar">
-          <button className="primary-btn" onClick={onEdit} style={{flex: 1}}>Edit recipe</button>
-          <button className="danger-btn" onClick={onDelete} aria-label="Delete">
-            <Icon.Trash />
-          </button>
+          <div className="detail-actions-bar">
+            <button className="cook-btn" onClick={startCooking}>
+              <span style={{fontSize: 16}}>👨‍🍳</span> Start cooking
+            </button>
+            <button className="ghost-btn" onClick={onEdit} aria-label="Edit" style={{padding: '0 14px'}}>
+              <Icon.Edit />
+            </button>
+            <button className="danger-btn" onClick={onDelete} aria-label="Delete">
+              <Icon.Trash />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1759,6 +2217,171 @@
     );
   }
 
+  // ---------- Quick actions (long press) ----------
+  function QuickActions({ recipe, onClose, onOpen, onToggleFav, onDelete }) {
+    if (!recipe) return null;
+    const platform = recipe.sourceUrl ? detectPlatform(recipe.sourceUrl) : 'web';
+    const sourceLabel = platform === 'instagram' ? 'IG' : platform === 'tiktok' ? 'TikTok' : (urlHost(recipe.sourceUrl).replace(/\.com$/,'') || '');
+    return (
+      <div className="sheet-overlay quick-overlay" onClick={onClose}>
+        <div className="quick-sheet" onClick={e => e.stopPropagation()}>
+          <div className="quick-recipe">
+            <div className="quick-thumb">
+              <RecipeMedia recipe={recipe} />
+            </div>
+            <div style={{minWidth: 0, flex: 1}}>
+              <div className="quick-title">{recipe.title || 'Untitled'}</div>
+              <div className="quick-meta">
+                {timeLabel(recipe) && <><Icon.Clock /> {timeLabel(recipe)}</>}
+                {timeLabel(recipe) && sourceLabel && <span style={{margin: '0 4px'}}>·</span>}
+                {sourceLabel && <span>{sourceLabel}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="quick-actions">
+            <button className="quick-action" onClick={() => { onToggleFav(); onClose(); }}>
+              <span className="qa-emoji">{recipe.favorite ? '💔' : '♥'}</span>
+              {recipe.favorite ? 'Unfavorite' : 'Favorite'}
+            </button>
+            <button className="quick-action" onClick={() => { onClose(); onOpen(); }}>
+              <span className="qa-emoji">📖</span>
+              Open
+            </button>
+            {recipe.sourceUrl && (
+              <button className="quick-action" onClick={() => { window.open(recipe.sourceUrl, '_blank', 'noopener'); onClose(); }}>
+                <span className="qa-emoji">↗</span>
+                View source
+              </button>
+            )}
+            <button className="quick-action danger" onClick={() => { onClose(); onDelete(); }}>
+              <span className="qa-emoji">🗑</span>
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Filter sheet ----------
+  function FilterSheet({ recipes, filters, setFilters, onClose }) {
+    const [draft, setDraft] = useState(filters);
+
+    const allTags = useMemo(() => {
+      const set = new Set();
+      recipes.forEach(r => (r.tags || []).forEach(t => set.add(t)));
+      return Array.from(set).sort();
+    }, [recipes]);
+
+    const toggleArr = (group, val) => {
+      setDraft(prev => {
+        const arr = prev[group];
+        return { ...prev, [group]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
+      });
+    };
+
+    const reset = () => setDraft(emptyFilters());
+    const apply = () => { setFilters(draft); onClose(); };
+
+    // Live count: how many recipes the current draft would match
+    const match = useMemo(() => {
+      return recipes.filter(r => {
+        if (draft.tags.length && !draft.tags.some(t => (r.tags || []).includes(t))) return false;
+        if (draft.source.length) {
+          const p = r.sourceUrl ? detectPlatform(r.sourceUrl) : 'web';
+          if (!draft.source.includes(p)) return false;
+        }
+        if (draft.time.length) {
+          const mins = recipeMinutes(r);
+          const buckets = TIME_BUCKETS.filter(b => draft.time.includes(b.id));
+          if (!buckets.some(b => b.test(mins))) return false;
+        }
+        if (draft.favorite && !r.favorite) return false;
+        return true;
+      }).length;
+    }, [recipes, draft]);
+
+    return (
+      <div className="sheet-overlay" onClick={onClose}>
+        <div className="sheet" onClick={e => e.stopPropagation()}>
+          <div className="sheet-grab" />
+          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 12}}>
+            <h2 className="sheet-title" style={{margin: 0}}>Filters</h2>
+            <button className="btn-text" onClick={reset} style={{padding: 0}}>Reset</button>
+          </div>
+
+          <div className="filter-section">
+            <h3 className="filter-section-title">Time</h3>
+            <div className="chip-row">
+              {TIME_BUCKETS.map((o, i) => (
+                <button
+                  key={o.id}
+                  className={'chip ' + (draft.time.includes(o.id) ? 'on' : '')}
+                  style={{ animationDelay: `${i * 30}ms` }}
+                  onClick={() => toggleArr('time', o.id)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="filter-section">
+            <h3 className="filter-section-title">Source</h3>
+            <div className="chip-row">
+              {SOURCE_OPTIONS.map((o, i) => (
+                <button
+                  key={o.id}
+                  className={'chip ' + (draft.source.includes(o.id) ? 'on' : '')}
+                  style={{ animationDelay: `${i * 30}ms` }}
+                  onClick={() => toggleArr('source', o.id)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="filter-section">
+            <h3 className="filter-section-title">Favorites</h3>
+            <div className="chip-row">
+              <button
+                className={'chip ' + (draft.favorite ? 'on' : '')}
+                onClick={() => setDraft(p => ({ ...p, favorite: !p.favorite }))}
+              >
+                ♥ Favorites only
+              </button>
+            </div>
+          </div>
+
+          {allTags.length > 0 && (
+            <div className="filter-section">
+              <h3 className="filter-section-title">Tags</h3>
+              <div className="chip-row">
+                {allTags.map((t, i) => (
+                  <button
+                    key={t}
+                    className={'chip ' + (draft.tags.includes(t) ? 'on' : '')}
+                    style={{ animationDelay: `${i * 25}ms` }}
+                    onClick={() => toggleArr('tags', t)}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="sheet-bottom-actions">
+            <button className="primary-btn" onClick={apply}>
+              Show {match} {match === 1 ? 'recipe' : 'recipes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ---------- Import sheet ----------
   function ImportSheet({ onClose, onImported, onPreviewSave, showToast }) {
     const [stage, setStage] = useState('paste');  // paste | detecting | preview | error
@@ -1911,6 +2534,32 @@
                 </div>
               )}
 
+              {!url && (
+                <div className="sample-block">
+                  <p className="sample-label">Try a sample</p>
+                  <div className="sample-row">
+                    <button
+                      className="sample-chip"
+                      onClick={() => setUrl('https://www.bonappetit.com/recipe/bas-best-chocolate-chip-cookies')}
+                    >
+                      bonappetit.com
+                    </button>
+                    <button
+                      className="sample-chip"
+                      onClick={() => setUrl('https://cooking.nytimes.com/recipes/1024220-spicy-miso-pasta')}
+                    >
+                      cooking.nytimes.com
+                    </button>
+                    <button
+                      className="sample-chip"
+                      onClick={() => setUrl('https://www.seriouseats.com/perfect-chocolate-chip-cookie-recipe')}
+                    >
+                      seriouseats.com
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {err && <div className="error-box">{err}</div>}
 
               <button className="primary-btn" disabled={!trimmedUrl || busy} onClick={startDetect}>
@@ -1996,10 +2645,13 @@
     const [unlocked, setUnlocked] = useState(!!localStorage.getItem(PASSCODE_KEY));
     const [recipes, setRecipes] = useState(() => loadCache() || []);
     const [search, setSearch] = useState('');
-    const [tag, setTag] = useState('');
+    const [filters, setFilters] = useState(emptyFilters());
     const [openId, setOpenId] = useState(null);
     const [showImport, setShowImport] = useState(false);
+    const [showFilter, setShowFilter] = useState(false);
     const [editingId, setEditingId] = useState(null);
+    const [longPressed, setLongPressed] = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
     const [showToast, toastNode] = useToast();
 
     const refresh = useCallback(async () => {
@@ -2011,6 +2663,33 @@
         if (e.message !== 'unauthorized') showToast('Could not load recipes: ' + e.message, 'error');
       }
     }, [showToast]);
+
+    const onPullRefresh = async () => {
+      setRefreshing(true);
+      try { await refresh(); }
+      finally {
+        // Keep spinner visible at least 600ms so it's perceptible.
+        setTimeout(() => setRefreshing(false), 600);
+      }
+    };
+
+    const toggleFavorite = async (id) => {
+      const r = recipes.find(x => x.id === id);
+      if (!r) return;
+      const updated = { ...r, favorite: !r.favorite };
+      setRecipes(rs => rs.map(x => x.id === id ? updated : x));
+      try {
+        const saved = await api.save(id, updated);
+        setRecipes(rs => {
+          const next = rs.map(x => x.id === id ? saved : x);
+          saveCache(next);
+          return next;
+        });
+      } catch (e) {
+        showToast('Could not update favorite', 'error');
+        setRecipes(rs => rs.map(x => x.id === id ? r : x));
+      }
+    };
 
     useEffect(() => { if (unlocked) refresh(); }, [unlocked, refresh]);
 
@@ -2054,10 +2733,37 @@
         <LibraryScreen
           recipes={recipes}
           search={search} setSearch={setSearch}
-          tag={tag} setTag={setTag}
+          filters={filters} setFilters={setFilters}
           onOpen={openRecipe}
           onOpenImport={() => setShowImport(true)}
+          onOpenFilter={() => setShowFilter(true)}
+          onLongPress={(r) => setLongPressed(r)}
+          onSwipeAction={(r, action) => {
+            if (action === 'favorite') toggleFavorite(r.id);
+            else if (action === 'delete') deleteRecipe(r.id);
+          }}
+          onRefresh={onPullRefresh}
+          refreshing={refreshing}
         />
+
+        {showFilter && (
+          <FilterSheet
+            recipes={recipes}
+            filters={filters}
+            setFilters={setFilters}
+            onClose={() => setShowFilter(false)}
+          />
+        )}
+
+        {longPressed && (
+          <QuickActions
+            recipe={longPressed}
+            onClose={() => setLongPressed(null)}
+            onOpen={() => openRecipe(longPressed)}
+            onToggleFav={() => toggleFavorite(longPressed.id)}
+            onDelete={() => deleteRecipe(longPressed.id)}
+          />
+        )}
 
         {openRecipeObj && !editingRecipe && (
           <DetailScreen

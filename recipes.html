@@ -274,10 +274,12 @@
       opacity: 0.6;
     }
     .chip-clear {
-      background: transparent;
-      border: 1px dashed var(--line-strong);
-      color: var(--ink-3);
+      background: var(--bg-elev);
+      border: 1px solid var(--accent);
+      color: var(--accent-ink);
+      font-weight: 600;
     }
+    .chip-clear:hover { background: var(--accent-soft); }
     @keyframes chip-in {
       from { opacity: 0; transform: translateY(3px); }
       to { opacity: 1; transform: translateY(0); }
@@ -288,7 +290,7 @@
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
-      padding: 14px 14px 100px;
+      padding: 24px 14px 100px;
       position: relative;
       -webkit-overflow-scrolling: touch;
     }
@@ -943,13 +945,31 @@
       font-size: 14.5px;
       font-weight: 600;
       letter-spacing: -0.01em;
-      transition: transform 160ms;
+      transition: transform 160ms, background 200ms, box-shadow 200ms;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
+      position: relative;
+      overflow: hidden;
     }
     .cook-btn:active { transform: scale(0.98); }
+    .cook-btn.started {
+      background: oklch(from var(--accent) calc(l - 0.06) c h);
+      box-shadow: inset 0 0 0 2px oklch(0.99 0 0 / 0.4);
+      animation: cook-confirm 600ms ease;
+    }
+    @keyframes cook-confirm {
+      0%   { transform: scale(1); }
+      25%  { transform: scale(1.02); box-shadow: 0 0 0 6px color-mix(in oklch, var(--accent) 22%, transparent); }
+      100% { transform: scale(1); }
+    }
+    .cooked-pill { animation: pop 460ms cubic-bezier(.2,.7,.3,1.4); }
+    @keyframes pop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.16); background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
+      100% { transform: scale(1); }
+    }
     .detail-actions-bar .ghost-btn {
       flex: 0 0 auto;
       padding: 0 16px;
@@ -1369,7 +1389,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <div class="version" id="version">v2026.05.02.5</div>
+  <div class="version" id="version">v2026.05.02.6</div>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1386,7 +1406,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.5';
+  const APP_VERSION       = 'v2026.05.02.6';
   const PASSCODE_KEY      = 'recipes-passcode';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY       = 'recipes-checked-v1';
@@ -1873,6 +1893,8 @@
     const [cooked, setCooked] = useState(recipe.cooked || 0);
     const [dragX, setDragX] = useState(0);
     const [closing, setClosing] = useState(false);
+    const [justCooked, setJustCooked] = useState(false);
+    const [cookedFlash, setCookedFlash] = useState(false);
     const swipeStart = useRef(null);
     const personalDirty = useRef(false);
 
@@ -1936,10 +1958,18 @@
     };
 
     const startCooking = async () => {
+      if (justCooked) return; // debounce double-tap
       setTab('steps');
       setStepIdx(0);
       const next = cooked + 1;
       setCooked(next);
+      setJustCooked(true);
+      setCookedFlash(true);
+      // Vibrate on mobile if supported (subtle confirmation)
+      if (navigator.vibrate) try { navigator.vibrate(15); } catch {}
+      // Reset confirmation states after the animations complete
+      setTimeout(() => setJustCooked(false), 1600);
+      setTimeout(() => setCookedFlash(false), 600);
       try { await onSave({ ...recipe, cooked: next, favorite }); } catch {}
     };
 
@@ -2017,7 +2047,11 @@
               {!recipe.prepTime && !recipe.cookTime && recipe.totalTime &&
                 <div className="meta-pill"><span className="meta-pill-icon">⏱</span> {recipe.totalTime}</div>}
               {recipe.servings && <div className="meta-pill"><span className="meta-pill-icon">🍽</span> {recipe.servings}</div>}
-              {cooked > 0 && <div className="meta-pill"><span className="meta-pill-icon">🍴</span> cooked {cooked}×</div>}
+              {cooked > 0 && (
+                <div className={'meta-pill ' + (cookedFlash ? 'cooked-pill' : '')}>
+                  <span className="meta-pill-icon">🍴</span> cooked {cooked}×
+                </div>
+              )}
             </div>
           )}
 
@@ -2097,8 +2131,13 @@
           <div style={{height: 100}} />
 
           <div className="detail-actions-bar">
-            <button className="cook-btn" onClick={startCooking}>
-              <span style={{fontSize: 16}}>👨‍🍳</span> Start cooking
+            <button
+              className={'cook-btn ' + (justCooked ? 'started' : '')}
+              onClick={startCooking}
+              disabled={justCooked}
+            >
+              <span style={{fontSize: 16}}>{justCooked ? '✓' : '👨‍🍳'}</span>
+              {justCooked ? 'Cooking now · Step 1' : 'Start cooking'}
             </button>
             <button className="ghost-btn" onClick={onEdit} aria-label="Edit" style={{padding: '0 14px'}}>
               <Icon.Edit />

@@ -983,6 +983,19 @@
       border-color: var(--accent);
     }
     .ing-text { font-size: 14px; line-height: 1.5; color: var(--ink); }
+    .ing-section {
+      list-style: none;
+      padding: 14px 0 6px;
+      margin: 6px 0 0;
+      border-bottom: 1px solid var(--line);
+      font-family: var(--font-display);
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--accent-ink);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .ingredient-list .ing-section:first-child { padding-top: 0; }
 
     .steps-list {
       list-style: none;
@@ -1693,7 +1706,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.19';
+  const APP_VERSION       = 'v2026.05.02.20';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -2583,18 +2596,28 @@
 
           {tab === 'ingredients' && (
             <ul className="ingredient-list">
-              {ingredients.map((ing, i) => (
-                <li key={i} className={'ing-row ' + (checkedIng.has(i) ? 'checked' : '')} onClick={() => toggleIng(i)}>
-                  <span className="ing-check">
-                    {checkedIng.has(i) && (
-                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                        <path d="M5 13l4 4 10-10" />
-                      </svg>
-                    )}
-                  </span>
-                  <span className="ing-text">{convertText(ing, units)}</span>
-                </li>
-              ))}
+              {ingredients.map((ing, i) => {
+                const isSection = /^—.*—$/.test(ing);
+                if (isSection) {
+                  return (
+                    <li key={i} className="ing-section">
+                      {ing.replace(/—/g, '').trim()}
+                    </li>
+                  );
+                }
+                return (
+                  <li key={i} className={'ing-row ' + (checkedIng.has(i) ? 'checked' : '')} onClick={() => toggleIng(i)}>
+                    <span className="ing-check">
+                      {checkedIng.has(i) && (
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                          <path d="M5 13l4 4 10-10" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="ing-text">{convertText(ing, units)}</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
@@ -2915,7 +2938,7 @@
   // ---------- Settings sheet ----------
   // Centralized place for connection status, dark mode, and stats. Replaces
   // the previous header-icon clutter with a single ⚙ button.
-  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account }) {
+  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits }) {
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
@@ -2937,6 +2960,20 @@
                 aria-label="Toggle dark mode"
                 tabIndex={0}
               />
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <h3 className="filter-section-title">Measurements</h3>
+            <div className="setting-row">
+              <div>
+                <div className="setting-row-label">Default units</div>
+                <div className="setting-row-sub">Used everywhere; can be flipped per recipe too</div>
+              </div>
+              <div className="units-toggle-row" style={{margin: 0}}>
+                <button className={'units-toggle ' + (units === 'us' ? 'on' : '')} onClick={() => setUnits('us')}>US</button>
+                <button className={'units-toggle ' + (units === 'metric' ? 'on' : '')} onClick={() => setUnits('metric')}>Metric</button>
+              </div>
             </div>
           </div>
 
@@ -3863,6 +3900,8 @@
             onOpenStats={() => setShowStats(true)}
             recipesCount={recipes.length}
             account={account}
+            units={units}
+            setUnits={setUnits}
             onSignOut={async () => {
               if (!confirm('Disconnect Dropbox? Your recipes stay safe — you can reconnect anytime.')) return;
               try { await api.disconnect(); } catch {}

@@ -111,17 +111,25 @@ const extractVideoFn = inngest.createFunction(
           });
         }
 
-        // Archive mp4 to Dropbox if we got one.
+        // Archive mp4 to Dropbox if we got one. Cap at 200MB so long-form
+        // YouTube videos (cooking shows, full episodes) don't run away with
+        // the user's Dropbox quota. The recipe still saves with extracted
+        // text + thumbnail; users can always re-watch via the source URL.
         let videoPath = null;
+        const MAX_ARCHIVE_BYTES = 200 * 1024 * 1024;
         if (result.mp4Buffer && result.mp4Buffer.length > 0) {
-          await updateJob(dbxToken, jobId, { progress: 'Archiving video' }).catch(() => {});
-          videoPath = `/videos/${jobId}.mp4`;
-          try {
-            await dbxUpload(dbxToken, videoPath, result.mp4Buffer);
-            console.log(`[archive] uploaded ${result.mp4Buffer.length} bytes to ${videoPath}`);
-          } catch (err) {
-            console.warn('[archive] dropbox upload failed:', err.message);
-            videoPath = null;
+          if (result.mp4Buffer.length > MAX_ARCHIVE_BYTES) {
+            console.log(`[archive] mp4 ${(result.mp4Buffer.length / 1024 / 1024).toFixed(1)}MB exceeds 200MB cap, skipping archive`);
+          } else {
+            await updateJob(dbxToken, jobId, { progress: 'Archiving video' }).catch(() => {});
+            videoPath = `/videos/${jobId}.mp4`;
+            try {
+              await dbxUpload(dbxToken, videoPath, result.mp4Buffer);
+              console.log(`[archive] uploaded ${result.mp4Buffer.length} bytes to ${videoPath}`);
+            } catch (err) {
+              console.warn('[archive] dropbox upload failed:', err.message);
+              videoPath = null;
+            }
           }
         }
 

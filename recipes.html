@@ -299,9 +299,15 @@
       padding: 12px 4px;
       border-bottom: 1px solid var(--line);
       cursor: pointer;
+    }
+    /* Dim only the content, not the row itself — the row's background must stay
+       fully opaque so the swipe-action panels (red Remove / blue Alternatives)
+       behind it don't bleed through on checked items. */
+    .shop-row.checked .shop-content,
+    .shop-row.checked .shop-check {
+      opacity: 0.45;
       transition: opacity 200ms;
     }
-    .shop-row.checked { opacity: 0.45; }
     .shop-row.checked .shop-name { text-decoration: line-through; }
     .shop-check {
       width: 22px;
@@ -1963,7 +1969,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.24';
+  const APP_VERSION       = 'v2026.05.02.25';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -3318,20 +3324,9 @@
 
     const [swipeX, setSwipeX] = useState(0);
     const startRef = useRef(null);
-    const longPressTimer = useRef(null);
-    const longPressFired = useRef(false);
 
     const onPointerDown = (e) => {
       startRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), captured: false, abandoned: false };
-      longPressFired.current = false;
-      longPressTimer.current = setTimeout(() => {
-        if (startRef.current && !startRef.current.abandoned) {
-          longPressFired.current = true;
-          if (navigator.vibrate) navigator.vibrate(10);
-          // Long-press → trigger the same "alternatives" sheet (also has remove option inside)
-          onAlternatives?.(item);
-        }
-      }, 480);
     };
     const onPointerMove = (e) => {
       if (!startRef.current || startRef.current.abandoned) return;
@@ -3340,10 +3335,8 @@
       // Vertical scroll commitment — abandon swipe.
       if (!startRef.current.captured && Math.abs(dy) > Math.abs(dx) + 4) {
         startRef.current.abandoned = true;
-        clearTimeout(longPressTimer.current);
         return;
       }
-      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) clearTimeout(longPressTimer.current);
       if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
         if (!startRef.current.captured) {
           try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
@@ -3353,7 +3346,6 @@
       }
     };
     const onPointerUp = (e) => {
-      clearTimeout(longPressTimer.current);
       if (!startRef.current) return;
       const { x, y, t, captured, abandoned } = startRef.current;
       const dx = e.clientX - x;
@@ -3376,13 +3368,12 @@
         return;
       }
       setSwipeX(0);
-      // Tap (no swipe, no long-press) → toggle checked
-      if (!longPressFired.current && !captured && Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 500) {
+      // Tap → toggle checked
+      if (!captured && Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 500) {
         onToggle?.(item.id);
       }
     };
     const onPointerCancel = () => {
-      clearTimeout(longPressTimer.current);
       setSwipeX(0);
       startRef.current = null;
     };

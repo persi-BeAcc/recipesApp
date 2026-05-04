@@ -230,6 +230,228 @@
       border-color: var(--accent);
     }
 
+    /* ---------- BOTTOM TABS ---------- */
+    .tabs-bottom {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      background: var(--bg-elev);
+      border-top: 1px solid var(--line);
+      padding-bottom: env(safe-area-inset-bottom);
+      z-index: 18;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      background: color-mix(in oklch, var(--bg-elev) 85%, transparent);
+    }
+    .tab-bottom {
+      flex: 1;
+      padding: 9px 0 7px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--ink-3);
+      cursor: pointer;
+      transition: color 140ms;
+      letter-spacing: 0.02em;
+      position: relative;
+    }
+    .tab-bottom svg { stroke: currentColor; }
+    .tab-bottom.active { color: var(--accent); }
+    .tab-bottom.active::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 30%;
+      right: 30%;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 0 0 3px 3px;
+    }
+
+    /* ---------- SHOPPING SCREEN ---------- */
+    .shop-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .shop-category-heading {
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-ink);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 18px 0 8px;
+      border-bottom: 1px solid var(--line);
+      margin: 0;
+    }
+    .shop-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 4px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      transition: opacity 200ms;
+    }
+    .shop-row.checked { opacity: 0.45; }
+    .shop-row.checked .shop-name { text-decoration: line-through; }
+    .shop-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1.5px solid var(--line-strong);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: oklch(0.99 0 0);
+      transition: background 160ms, border-color 160ms;
+    }
+    .shop-row.checked .shop-check {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .shop-content { flex: 1; min-width: 0; }
+    .shop-name {
+      font-size: 14.5px;
+      line-height: 1.4;
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .shop-meta {
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+      flex-wrap: wrap;
+      margin-top: 2px;
+    }
+    .shop-qty {
+      font-size: 12.5px;
+      color: var(--accent-ink);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .shop-note {
+      font-size: 12px;
+      color: var(--ink-3);
+      font-style: italic;
+    }
+    .shop-from-recipe {
+      font-size: 11px;
+      color: var(--ink-3);
+    }
+    .shop-actions-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .shop-count-pill {
+      font-size: 12px;
+      color: var(--ink-2);
+      background: var(--bg-sunk);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-weight: 500;
+    }
+
+    /* Add-shopping sheet tabs */
+    .add-shop-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 18px;
+      background: var(--bg-sunk);
+      padding: 3px;
+      border-radius: 10px;
+    }
+    .add-shop-tab {
+      flex: 1;
+      padding: 9px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink-3);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 160ms;
+      text-align: center;
+    }
+    .add-shop-tab.active {
+      background: var(--bg-elev);
+      color: var(--ink);
+      box-shadow: 0 1px 3px oklch(0 0 0 / 0.06);
+    }
+    .add-shop-textarea {
+      width: 100%;
+      min-height: 140px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--bg-elev);
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--ink);
+      outline: none;
+      resize: vertical;
+      margin-bottom: 14px;
+    }
+    .add-shop-textarea:focus { border-color: var(--accent); }
+    .photo-pick-card {
+      border: 2px dashed var(--line-strong);
+      border-radius: 12px;
+      padding: 28px 18px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 160ms, background 160ms;
+      margin-bottom: 14px;
+    }
+    .photo-pick-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .photo-pick-card .icon { font-size: 38px; margin-bottom: 6px; opacity: 0.7; }
+    .photo-pick-card .title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+    .photo-pick-card .sub   { font-size: 12px; color: var(--ink-3); }
+    .recipe-pick-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 4px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+    }
+    .recipe-pick-row:last-child { border-bottom: none; }
+    .recipe-pick-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--bg-sunk);
+      position: relative;
+    }
+    .recipe-pick-name { flex: 1; font-size: 13.5px; font-weight: 500; color: var(--ink); }
+    .recipe-pick-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1.5px solid var(--line-strong);
+      display: grid;
+      place-items: center;
+      color: oklch(0.99 0 0);
+      flex-shrink: 0;
+    }
+    .recipe-pick-row.selected .recipe-pick-check {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
     /* Settings sheet */
     .settings-section { margin-bottom: 24px; }
     .setting-row {
@@ -1715,7 +1937,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.21';
+  const APP_VERSION       = 'v2026.05.02.22';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -1760,6 +1982,10 @@
     disconnect:     ()              => apiRequest('/api/whoami?action=disconnect', { method: 'POST', body: {} }),
     shareLink:      (id)            => apiRequest(`/api/share?id=${encodeURIComponent(id)}`, { method: 'POST', body: {} }),
     saveShared:     (recipe, videoUrl) => apiRequest('/api/share', { method: 'POST', body: { recipe, videoUrl } }),
+    shoppingList:   ()              => apiRequest('/api/shopping'),
+    shoppingSave:   (items)         => apiRequest('/api/shopping', { method: 'PUT', body: { items } }),
+    shoppingClear:  ()              => apiRequest('/api/shopping', { method: 'DELETE' }),
+    shoppingAdd:    (body)          => apiRequest('/api/shopping/add', { method: 'POST', body }),
   };
 
   // ---------- URL classification ----------
@@ -2349,7 +2575,7 @@
   }
 
   // ---------- Detail ----------
-  function DetailScreen({ recipe, onClose, onSave, onDelete, onEdit, onShare, units, setUnits }) {
+  function DetailScreen({ recipe, onClose, onSave, onDelete, onEdit, onShare, onAddToShopping, units, setUnits }) {
     const [tab, setTab] = useState('ingredients');
     const [checkedIng, setCheckedIng] = useState(() => new Set(loadChecked(recipe.id)));
     const [stepIdx, setStepIdx] = useState(0);
@@ -2698,6 +2924,13 @@
               <span style={{fontSize: 16}}>{cooking ? '⏹' : '👨‍🍳'}</span>
               {cooking ? 'End cooking' : 'Start cooking'}
             </button>
+            <button className="ghost-btn" onClick={onAddToShopping} aria-label="Add to shopping list" style={{padding: '0 14px'}}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1.5" />
+                <circle cx="18" cy="21" r="1.5" />
+                <path d="M2.5 3h2.6l2.4 12.5a2 2 0 0 0 2 1.5h8.6a2 2 0 0 0 2-1.6l1.4-7.4H6" />
+              </svg>
+            </button>
             <button className="ghost-btn" onClick={onShare} aria-label="Share" style={{padding: '0 14px'}}>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
@@ -2962,6 +3195,283 @@
           <button className="primary-btn" onClick={doSave} disabled={busy}>
             {busy ? <><span className="spinner on-accent" /> Saving…</> : 'Save changes'}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Shopping screen ----------
+  const SHOP_CATEGORY_ORDER = ['produce', 'meat', 'seafood', 'dairy', 'bakery', 'pantry', 'frozen', 'beverages', 'other'];
+  const SHOP_CATEGORY_LABEL = {
+    produce:   '🥬 Produce',
+    meat:      '🥩 Meat',
+    seafood:   '🐟 Seafood',
+    dairy:     '🥛 Dairy',
+    bakery:    '🍞 Bakery',
+    pantry:    '🥫 Pantry',
+    frozen:    '🧊 Frozen',
+    beverages: '🥤 Beverages',
+    other:     '🛒 Other',
+  };
+
+  function ShoppingScreen({ items, onToggle, onClearChecked, onClearAll, onOpenAdd, onOpenSettings, recipes }) {
+    // Group by category — pending items above, checked items below.
+    const grouped = useMemo(() => {
+      const pending = {};
+      const checked = [];
+      for (const it of items) {
+        if (it.checked) {
+          checked.push(it);
+        } else {
+          const cat = it.category || 'other';
+          (pending[cat] ||= []).push(it);
+        }
+      }
+      const ordered = SHOP_CATEGORY_ORDER
+        .filter(c => pending[c] && pending[c].length)
+        .map(c => [c, pending[c]]);
+      return { ordered, checked };
+    }, [items]);
+
+    const totalPending = items.filter(it => !it.checked).length;
+    const totalChecked = items.filter(it => it.checked).length;
+
+    return (
+      <div className="screen">
+        <div className="lib-header">
+          <div className="brand-row">
+            <div className="brand">Shopping<span className="dot">.</span></div>
+            <div className="header-count">
+              {totalPending} {totalPending === 1 ? 'item' : 'items'}
+              {totalChecked > 0 && <> · {totalChecked} got</>}
+            </div>
+          </div>
+          <div className="search-row">
+            <button
+              className="filter-btn"
+              onClick={onOpenSettings}
+              aria-label="Settings"
+              style={{marginLeft: 'auto'}}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="lib-scroll">
+          {items.length === 0 ? (
+            <div className="empty">
+              <div className="empty-emoji">🛒</div>
+              <h3>Nothing on the list yet</h3>
+              <p>Tap + to add items by typing, snapping a photo of a written list, or pulling from your recipes.</p>
+              <button className="btn-text" onClick={onOpenAdd}>Add the first item</button>
+            </div>
+          ) : (
+            <>
+              <div className="shop-actions-bar">
+                {totalChecked > 0 && (
+                  <button className="chip" onClick={onClearChecked}>
+                    Clear {totalChecked} checked
+                  </button>
+                )}
+                <button className="chip chip-clear" onClick={onClearAll} style={{marginLeft: 'auto'}}>
+                  Clear all
+                </button>
+              </div>
+
+              {grouped.ordered.map(([cat, list]) => (
+                <div key={cat}>
+                  <div className="shop-category-heading">{SHOP_CATEGORY_LABEL[cat] || cat}</div>
+                  <ul className="shop-list">
+                    {list.map(it => (
+                      <ShoppingRow key={it.id} item={it} onToggle={onToggle} recipes={recipes} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+
+              {grouped.checked.length > 0 && (
+                <div>
+                  <div className="shop-category-heading" style={{color: 'var(--ink-3)'}}>Got it</div>
+                  <ul className="shop-list">
+                    {grouped.checked.map(it => (
+                      <ShoppingRow key={it.id} item={it} onToggle={onToggle} recipes={recipes} />
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div style={{height: 80}} />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function ShoppingRow({ item, onToggle, recipes }) {
+    const fromRecipe = item.fromRecipes && item.fromRecipes.length
+      ? (recipes || []).find(r => r.id === item.fromRecipes[0])
+      : null;
+    return (
+      <li className={'shop-row ' + (item.checked ? 'checked' : '')} onClick={() => onToggle(item.id)}>
+        <span className="shop-check">
+          {item.checked && (
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <path d="M5 13l4 4 10-10" />
+            </svg>
+          )}
+        </span>
+        <div className="shop-content">
+          <div className="shop-name">{item.name}</div>
+          <div className="shop-meta">
+            {item.qty && <span className="shop-qty">{item.qty}</span>}
+            {item.note && <span className="shop-note">· {item.note}</span>}
+            {fromRecipe && <span className="shop-from-recipe">· from {fromRecipe.title}</span>}
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  // ---------- Add Shopping sheet ----------
+  function AddShoppingSheet({ onClose, recipes, onAddTyped, onAddPhoto, onAddFromRecipes }) {
+    const [tab, setTab] = useState('type');
+    const [text, setText] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState(null);
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const fileRef = useRef(null);
+
+    const submitTyped = async () => {
+      const items = text.split('\n').map(s => s.trim()).filter(Boolean);
+      if (items.length === 0) { setErr('Add at least one item.'); return; }
+      setBusy(true); setErr(null);
+      try {
+        await onAddTyped(items);
+        onClose();
+      } catch (e) { setErr(e.message || 'Could not add items.'); }
+      finally { setBusy(false); }
+    };
+
+    const submitPhoto = async (file) => {
+      if (!file) return;
+      setBusy(true); setErr(null);
+      try {
+        const reader = new FileReader();
+        const dataUrl = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Could not read image'));
+          reader.readAsDataURL(file);
+        });
+        await onAddPhoto(dataUrl);
+        onClose();
+      } catch (e) { setErr(e.message || 'Could not process image.'); }
+      finally { setBusy(false); }
+    };
+
+    const submitRecipes = async () => {
+      const ids = Array.from(selectedIds);
+      if (ids.length === 0) { setErr('Pick at least one recipe.'); return; }
+      setBusy(true); setErr(null);
+      try {
+        await onAddFromRecipes(ids);
+        onClose();
+      } catch (e) { setErr(e.message || 'Could not add ingredients.'); }
+      finally { setBusy(false); }
+    };
+
+    const toggleRecipe = (id) => {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+    };
+
+    return (
+      <div className="sheet-overlay" onClick={onClose}>
+        <div className="sheet" onClick={e => e.stopPropagation()}>
+          <div className="sheet-grab" />
+          <h2 className="sheet-title">Add to shopping list</h2>
+          <p className="sheet-sub">Type, snap a photo, or pull from your recipes — we dedupe automatically.</p>
+
+          <div className="add-shop-tabs">
+            <button className={'add-shop-tab ' + (tab === 'type' ? 'active' : '')} onClick={() => setTab('type')}>Type</button>
+            <button className={'add-shop-tab ' + (tab === 'photo' ? 'active' : '')} onClick={() => setTab('photo')}>Photo</button>
+            <button className={'add-shop-tab ' + (tab === 'recipes' ? 'active' : '')} onClick={() => setTab('recipes')}>From recipes</button>
+          </div>
+
+          {tab === 'type' && (
+            <>
+              <textarea
+                className="add-shop-textarea"
+                value={text}
+                onChange={e => setText(e.target.value)}
+                placeholder="One item per line:&#10;2 cans diced tomatoes&#10;1 lb ground beef&#10;olive oil"
+                autoFocus
+              />
+              {err && <div className="error-box">{err}</div>}
+              <button className="primary-btn" onClick={submitTyped} disabled={busy || !text.trim()}>
+                {busy ? <><span className="spinner on-accent" /> Adding…</> : 'Add to list'}
+              </button>
+            </>
+          )}
+
+          {tab === 'photo' && (
+            <>
+              <div className="photo-pick-card" onClick={() => fileRef.current?.click()}>
+                <div className="icon">📷</div>
+                <div className="title">Snap or upload a photo</div>
+                <div className="sub">Handwritten or printed list. We'll read it.</div>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{display: 'none'}}
+                onChange={e => submitPhoto(e.target.files?.[0])}
+              />
+              {err && <div className="error-box">{err}</div>}
+              {busy && <div style={{textAlign: 'center', padding: 12, color: 'var(--ink-3)'}}>
+                <span className="spinner" /> Reading the photo…
+              </div>}
+            </>
+          )}
+
+          {tab === 'recipes' && (
+            <>
+              <div style={{maxHeight: '50vh', overflowY: 'auto', marginBottom: 14, marginLeft: -4, marginRight: -4}}>
+                {recipes.length === 0 ? (
+                  <p style={{color: 'var(--ink-3)', textAlign: 'center', padding: 24}}>No saved recipes yet.</p>
+                ) : recipes.map(r => (
+                  <div
+                    key={r.id}
+                    className={'recipe-pick-row ' + (selectedIds.has(r.id) ? 'selected' : '')}
+                    onClick={() => toggleRecipe(r.id)}
+                  >
+                    <div className="recipe-pick-thumb"><RecipeMedia recipe={r} /></div>
+                    <div className="recipe-pick-name">{r.title || 'Untitled'}</div>
+                    <div className="recipe-pick-check">
+                      {selectedIds.has(r.id) && (
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                          <path d="M5 13l4 4 10-10" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {err && <div className="error-box">{err}</div>}
+              <button className="primary-btn" onClick={submitRecipes} disabled={busy || selectedIds.size === 0}>
+                {busy ? <><span className="spinner on-accent" /> Adding…</> : `Add ingredients of ${selectedIds.size || 'selected'}`}
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -3744,6 +4254,9 @@
     const [showFilter, setShowFilter] = useState(false);
     const [showStats, setShowStats] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [tab, setTab] = useState('recipes'); // 'recipes' | 'shopping'
+    const [shopping, setShopping] = useState({ items: [] });
+    const [showAddShop, setShowAddShop] = useState(false);
     const [darkMode, setDarkModeState] = useState(() => localStorage.getItem('recipes-dark') === 'true');
     const setDarkMode = useCallback((v) => {
       setDarkModeState(v);
@@ -3788,6 +4301,64 @@
     };
 
     useEffect(() => { if (unlocked) refresh(); }, [unlocked, refresh]);
+
+    // Load shopping list once connected.
+    useEffect(() => {
+      if (!unlocked) return;
+      api.shoppingList()
+        .then(list => setShopping({ items: list.items || [] }))
+        .catch(e => { if (e.message !== 'unauthorized') console.warn('shopping load:', e.message); });
+    }, [unlocked]);
+
+    const toggleShopItem = async (id) => {
+      const next = shopping.items.map(it => it.id === id ? { ...it, checked: !it.checked } : it);
+      setShopping({ items: next });
+      try { await api.shoppingSave(next); }
+      catch (e) { showToast('Could not save: ' + e.message, 'error'); }
+    };
+    const clearCheckedShop = async () => {
+      const next = shopping.items.filter(it => !it.checked);
+      setShopping({ items: next });
+      try { await api.shoppingSave(next); showToast('Cleared'); }
+      catch (e) { showToast('Could not save: ' + e.message, 'error'); }
+    };
+    const clearAllShop = async () => {
+      if (!confirm('Clear the entire shopping list?')) return;
+      setShopping({ items: [] });
+      try { await api.shoppingClear(); showToast('Shopping list cleared'); }
+      catch (e) { showToast('Could not clear: ' + e.message, 'error'); }
+    };
+    const addShopTyped = async (items) => {
+      const result = await api.shoppingAdd({ items });
+      setShopping({ items: result.items });
+      showToast('Added to shopping list');
+    };
+    const addShopPhoto = async (dataUrl) => {
+      const result = await api.shoppingAdd({ image: dataUrl });
+      setShopping({ items: result.items });
+      showToast('Added from photo');
+    };
+    const addShopFromRecipes = async (recipeIds) => {
+      // Combine the ingredients from all selected recipes into one batch,
+      // tagging the source on the resulting items.
+      let lastResult = null;
+      for (const id of recipeIds) {
+        const r = recipes.find(x => x.id === id);
+        if (!r) continue;
+        const items = (r.ingredients || []).filter(s => !/^—.*—$/.test(s));
+        if (items.length === 0) continue;
+        lastResult = await api.shoppingAdd({ items, fromRecipe: id });
+      }
+      if (lastResult) setShopping({ items: lastResult.items });
+      showToast(`Added from ${recipeIds.length} ${recipeIds.length === 1 ? 'recipe' : 'recipes'}`);
+    };
+    const addShopFromOneRecipe = async (recipe) => {
+      const items = (recipe.ingredients || []).filter(s => !/^—.*—$/.test(s));
+      if (items.length === 0) return showToast('No ingredients to add', 'error');
+      const result = await api.shoppingAdd({ items, fromRecipe: recipe.id });
+      setShopping({ items: result.items });
+      showToast(`Added ${recipe.title} ingredients`);
+    };
 
     // Fetch the connected account info on first load (after OAuth callback
     // we got a snapshot from the callback page, but refresh it on every boot).
@@ -3892,21 +4463,67 @@
     const editingRecipe = recipes.find(r => r.id === editingId);
 
     return (
-      <div className="app-root">
-        <LibraryScreen
-          recipes={recipes}
-          search={search} setSearch={setSearch}
-          filters={filters} setFilters={setFilters}
-          onOpen={openRecipe}
-          onOpenImport={() => setShowImport(true)}
-          onOpenFilter={() => setShowFilter(true)}
-          onOpenSettings={() => setShowSettings(true)}
-          onLongPress={(r) => setLongPressed(r)}
-          onSwipeAction={(r, action) => {
-            if (action === 'favorite') toggleFavorite(r.id);
-            else if (action === 'delete') deleteRecipe(r.id);
-          }}
-        />
+      <div className="app-root" style={{paddingBottom: '60px'}}>
+        {tab === 'recipes' && (
+          <LibraryScreen
+            recipes={recipes}
+            search={search} setSearch={setSearch}
+            filters={filters} setFilters={setFilters}
+            onOpen={openRecipe}
+            onOpenImport={() => setShowImport(true)}
+            onOpenFilter={() => setShowFilter(true)}
+            onOpenSettings={() => setShowSettings(true)}
+            onLongPress={(r) => setLongPressed(r)}
+            onSwipeAction={(r, action) => {
+              if (action === 'favorite') toggleFavorite(r.id);
+              else if (action === 'delete') deleteRecipe(r.id);
+            }}
+          />
+        )}
+        {tab === 'shopping' && (
+          <ShoppingScreen
+            items={shopping.items}
+            recipes={recipes}
+            onToggle={toggleShopItem}
+            onClearChecked={clearCheckedShop}
+            onClearAll={clearAllShop}
+            onOpenAdd={() => setShowAddShop(true)}
+            onOpenSettings={() => setShowSettings(true)}
+          />
+        )}
+
+        {/* Bottom tab bar — switches between Recipes and Shopping. */}
+        <div className="tabs-bottom" role="tablist">
+          <button
+            className={'tab-bottom ' + (tab === 'recipes' ? 'active' : '')}
+            onClick={() => setTab('recipes')}
+            aria-label="Recipes"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            Recipes
+          </button>
+          <button
+            className={'tab-bottom ' + (tab === 'shopping' ? 'active' : '')}
+            onClick={() => setTab('shopping')}
+            aria-label="Shopping"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="21" r="1.5" />
+              <circle cx="18" cy="21" r="1.5" />
+              <path d="M2.5 3h2.6l2.4 12.5a2 2 0 0 0 2 1.5h8.6a2 2 0 0 0 2-1.6l1.4-7.4H6" />
+            </svg>
+            Shopping
+            {shopping.items.filter(it => !it.checked).length > 0 && (
+              <span style={{position: 'absolute', top: 4, right: '30%', background: 'var(--accent)', color: 'oklch(0.99 0 0)', fontSize: 9, fontWeight: 700, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, display: 'grid', placeItems: 'center'}}>
+                {shopping.items.filter(it => !it.checked).length}
+              </span>
+            )}
+          </button>
+        </div>
+
 
         {showFilter && (
           <FilterSheet
@@ -3922,6 +4539,23 @@
             recipes={recipes}
             onClose={() => setShowStats(false)}
           />
+        )}
+
+        {showAddShop && (
+          <AddShoppingSheet
+            recipes={recipes}
+            onClose={() => setShowAddShop(false)}
+            onAddTyped={addShopTyped}
+            onAddPhoto={addShopPhoto}
+            onAddFromRecipes={addShopFromRecipes}
+          />
+        )}
+
+        {/* When on shopping tab, the FAB opens the add-shopping sheet instead. */}
+        {tab === 'shopping' && (
+          <button className="fab" onClick={() => setShowAddShop(true)} aria-label="Add to shopping list">
+            <Icon.Plus />
+          </button>
         )}
 
         {showSettings && (
@@ -3962,6 +4596,10 @@
             onSave={saveRecipe}
             onDelete={() => deleteRecipe(openRecipeObj.id)}
             onEdit={() => setEditingId(openRecipeObj.id)}
+            onAddToShopping={async () => {
+              try { await addShopFromOneRecipe(openRecipeObj); }
+              catch (e) { showToast('Could not add: ' + e.message, 'error'); }
+            }}
             onShare={async () => {
               try {
                 let videoUrl = null;

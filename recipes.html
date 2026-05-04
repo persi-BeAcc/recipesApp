@@ -2035,6 +2035,7 @@
     jobStatus:      (jobId)         => apiRequest(`/api/job-status?id=${encodeURIComponent(jobId)}`),
     jobsPending:    ()              => apiRequest('/api/job-status'),
     videoLink:      (id)            => apiRequest(`/api/video-link?id=${encodeURIComponent(id)}`),
+    thumbLink:      (id)            => apiRequest(`/api/video-link?id=${encodeURIComponent(id)}&kind=thumb`),
     whoami:         ()              => apiRequest('/api/whoami'),
     disconnect:     ()              => apiRequest('/api/whoami?action=disconnect', { method: 'POST', body: {} }),
     shareLink:      (id)            => apiRequest(`/api/share?id=${encodeURIComponent(id)}`, { method: 'POST', body: {} }),
@@ -2266,7 +2267,6 @@
     },
     gemini: {
       'gemini-2.0-flash':          { in: 0.075, out: 0.30, unit: 'token' },
-      'gemini-2.0-flash-exp':      { in: 0.075, out: 0.30, unit: 'token' },
       'gemini-2.5-flash':          { in: 0.075, out: 0.30, unit: 'token' },
       _default:                    { in: 0.10,  out: 0.40, unit: 'token' },
     },
@@ -2439,17 +2439,47 @@
   // and silently slides into place when it loads. If the image 404s or its
   // CDN URL has expired (Instagram thumbnails do this), the overlay is
   // removed and the placeholder is visible underneath.
+  //
+  // For recipes with archived thumbnails (recipe.thumbPath), we lazily mint
+  // a per-user Dropbox temporary link. The URL is cached at module scope so
+  // a single grid render only triggers one API call per recipe.
+  const _thumbUrlCache = new Map();
+  function useThumbUrl(recipe) {
+    const [url, setUrl] = useState(() => {
+      if (recipe.thumbPath && _thumbUrlCache.has(recipe.id)) {
+        const cached = _thumbUrlCache.get(recipe.id);
+        return cached && typeof cached === 'string' ? cached : (recipe.image || '');
+      }
+      return recipe.image || '';
+    });
+    useEffect(() => {
+      if (!recipe.thumbPath || !recipe.id) return;
+      const cached = _thumbUrlCache.get(recipe.id);
+      if (typeof cached === 'string') { setUrl(cached); return; }
+      let cancelled = false;
+      const p = cached || api.thumbLink(recipe.id).then(r => (r && r.url) || '').catch(() => '');
+      _thumbUrlCache.set(recipe.id, p);
+      p.then(u => {
+        _thumbUrlCache.set(recipe.id, u);
+        if (!cancelled && u) setUrl(u);
+      });
+      return () => { cancelled = true; };
+    }, [recipe.id, recipe.thumbPath]);
+    return url;
+  }
+
   function RecipeMedia({ recipe }) {
     const [failed, setFailed] = useState(false);
+    const imgUrl = useThumbUrl(recipe);
     return (
       <>
         <div className="recipe-img-placeholder">
           <span className="recipe-img-letter">{firstLetter(recipe.title)}</span>
           <span className="recipe-img-caption">{recipe.title ? recipe.title.split(' ').slice(0,3).join(' ') : 'recipe'}</span>
         </div>
-        {recipe.image && !failed && (
+        {imgUrl && !failed && (
           <img
-            src={recipe.image}
+            src={imgUrl}
             alt=""
             loading="lazy"
             onError={() => setFailed(true)}

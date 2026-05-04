@@ -64,17 +64,21 @@
       --accent-soft:  oklch(0.30 0.030 125);
       --accent-ink:   oklch(0.85 0.060 125);
 
-      --bg:        oklch(0.16 0.008 90);
-      --bg-elev:   oklch(0.22 0.010 90);
-      --bg-sunk:   oklch(0.13 0.008 90);
-      --ink:       oklch(0.95 0.006 90);
-      --ink-2:     oklch(0.78 0.006 90);
-      --ink-3:     oklch(0.58 0.006 90);
-      --line:      oklch(0.28 0.010 90);
-      --line-strong: oklch(0.40 0.014 90);
+      --bg:        oklch(0.16 0 0);
+      --bg-elev:   oklch(0.22 0 0);
+      --bg-sunk:   oklch(0.13 0 0);
+      --ink:       oklch(0.95 0 0);
+      --ink-2:     oklch(0.78 0 0);
+      --ink-3:     oklch(0.58 0 0);
+      --line:      oklch(0.28 0 0);
+      --line-strong: oklch(0.40 0 0);
 
-      --shadow-card:  0 1px 2px oklch(0 0 0 / 0.5), 0 4px 12px oklch(0 0 0 / 0.4);
-      --shadow-fab:   0 6px 18px oklch(0 0 0 / 0.5), 0 2px 4px oklch(0 0 0 / 0.3);
+      /* Light, single-layer card shadow. The previous heavy two-layer dark
+         shadow rendered with a faint pink/red fringe on iOS Safari due to
+         sub-pixel chromatic aberration around the card's rounded corners.
+         A subtle inner ring + small drop is plenty to read as elevated. */
+      --shadow-card:  0 0 0 1px oklch(1 0 0 / 0.04), 0 2px 6px oklch(0 0 0 / 0.35);
+      --shadow-fab:   0 6px 18px oklch(0 0 0 / 0.45), 0 2px 4px oklch(0 0 0 / 0.28);
       --shadow-sheet: 0 -8px 40px oklch(0 0 0 / 0.5);
     }
 
@@ -1982,7 +1986,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.30';
+  const APP_VERSION       = 'v2026.05.02.31';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -4028,13 +4032,29 @@
                 {!locBusy && locErr && (
                   <div style={{fontSize: 12, color: 'oklch(0.55 0.18 25)', marginTop: 6, lineHeight: 1.4}}>
                     {locErr}
-                    {/* If the browser cached a denial, re-tapping just gets the same error
-                       instantly. Tell the user where to fix it. */}
-                    {/permission denied/i.test(locErr) && (
-                      <div style={{color: 'var(--ink-3)', marginTop: 4}}>
-                        On iOS: Settings → Safari → Location, then re-tap the toggle.
-                      </div>
-                    )}
+                    {/* Once denied, the browser caches the choice and won't re-prompt.
+                        The user has to flip it server-side. iOS treats installed PWAs
+                        (Add to Home Screen) as separate apps with their own permissions —
+                        which is the cleanest path. Detect that and tailor the help text. */}
+                    {/permission denied/i.test(locErr) && (() => {
+                      const isStandalone =
+                        (typeof window !== 'undefined' &&
+                          (window.matchMedia?.('(display-mode: standalone)')?.matches
+                            || window.navigator.standalone === true));
+                      return (
+                        <div style={{color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.45}}>
+                          {isStandalone ? (
+                            <>
+                              On iOS, open <b>Settings</b> → scroll to <b>My Kitchen</b> → <b>Location</b> → <b>While Using the App</b>. Then come back and re-tap.
+                            </>
+                          ) : (
+                            <>
+                              Browsers don't let us re-ask once you've denied — but if you install this app to your Home Screen (Share → Add to Home Screen), iOS will give it its own Location toggle in <b>Settings → My Kitchen</b>, separate from the rest of Safari. Otherwise, fix it under <b>Settings → Safari → Location</b>.
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

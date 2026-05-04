@@ -9,7 +9,7 @@
 //
 // Bump CACHE_NAME on every release alongside the version chip in recipes.html.
 
-const CACHE_NAME = 'recipes-v2026.05.02.30';
+const CACHE_NAME = 'recipes-v2026.05.02.31';
 
 const APP_SHELL = [
   '/',

@@ -51,8 +51,10 @@
       --gap: 12px;
     }
 
-    /* Dark mode — applied via [data-theme="dark"] on .app-root */
-    .app-root[data-theme="dark"] {
+    /* Dark mode — set [data-theme="dark"] on whichever screen-level container
+       is currently mounted (.app-root in normal use, .gate on the welcome
+       screen). Use a generic selector so all screens pick it up. */
+    [data-theme="dark"] {
       --header-bg:    oklch(0.32 0.030 125);
       --header-ink:   oklch(0.95 0.008 90);
       --header-ink-2: oklch(0.80 0.010 90);
@@ -1980,7 +1982,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.29';
+  const APP_VERSION       = 'v2026.05.02.30';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -2176,14 +2178,29 @@
         reject(new Error('Geolocation is not available on this device.'));
         return;
       }
+      // Wallclock guard — iOS can leave the promise pending forever if the
+      // user dismisses the permission prompt without tapping Allow/Don't Allow
+      // (e.g. backgrounds the app). Native `timeout` only times the fix
+      // acquisition, not the prompt itself, so we add our own.
+      let settled = false;
+      const wallclock = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('Location request timed out — please tap again.'));
+      }, 15000);
+      const finish = (fn) => (...args) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(wallclock);
+        fn(...args);
+      };
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        (err) => {
-          // Friendlier error than the raw browser message.
+        finish((pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude })),
+        finish((err) => {
           if (err && err.code === 1) reject(new Error('Location permission denied. You can enable it in your browser settings.'));
           else if (err && err.code === 3) reject(new Error('Location request timed out — please try again.'));
           else reject(new Error((err && err.message) || 'Could not get location.'));
-        },
+        }),
         { enableHighAccuracy: false, timeout: 12000, maximumAge: 60 * 60 * 1000 }
       );
     });
@@ -2332,10 +2349,10 @@
   // ---------- Welcome / Connect screen ----------
   // Replaces the old passcode gate. Each user OAuths to their own Dropbox;
   // the refresh token gets stored in localStorage by the OAuth callback page.
-  function WelcomeScreen() {
+  function WelcomeScreen({ dataTheme = 'light' }) {
     const connect = () => { window.location.href = '/api/oauth/start'; };
     return (
-      <div className="gate">
+      <div className="gate" data-theme={dataTheme}>
         <div className="gate-card">
           <div className="brand" style={{fontSize: 32, marginBottom: 4}}>My Kitchen<span className="dot">.</span></div>
           <p style={{margin: '0 0 24px'}}>Save recipes from anywhere, synced to your own Dropbox.</p>
@@ -3536,68 +3553,114 @@
   }
 
   // ---------- Reusable sheet grab handle (drag-down to dismiss) ----------
-  // Renders the visible 32×4 bar inside a larger invisible touch target.
-  // On pointer-down, walks up to its parent .sheet element and translates it
-  // down by the drag distance; if released past ~90px the sheet animates off
-  // the bottom and onClose() is called. Released earlier → springs back.
+  // Renders the visible 32×4 bar inside a larger invisible touch target. When
+  // the user starts a touch on the bar we attach document-level touchmove/up
+  // listeners and translate the parent .sheet by the drag delta. If released
+  // past ~90px the sheet animates off the bottom and onClose() is called;
+  // otherwise it springs back.
+  //
+  // Why touch* + addEventListener instead of React's onPointer*:
+  //   • React's synthetic listeners are passive by default on iOS, so we
+  //     can't preventDefault() to stop the parent .sheet (overflow-y: auto)
+  //     from swallowing the gesture as a scroll.
+  //   • Document-level move/up are more reliable than pointer capture when
+  //     the touch leaves the small grab area mid-drag.
   function SheetGrab({ onClose }) {
     const wrapRef = useRef(null);
-    const sheetRef = useRef(null);
-    const dragRef = useRef(null);
 
-    const setSheetTransform = (y, animate) => {
-      const el = sheetRef.current;
-      if (!el) return;
-      el.style.transition = animate ? 'transform 220ms cubic-bezier(.2,.7,.3,1)' : 'none';
-      el.style.transform = y > 0 ? `translateY(${y}px)` : '';
-    };
+    useEffect(() => {
+      const wrap = wrapRef.current;
+      if (!wrap) return;
 
-    const onPointerDown = (e) => {
-      // Find the parent .sheet at gesture start (don't cache earlier — the
-      // grab can be conditionally mounted before the parent finishes laying out).
-      sheetRef.current = wrapRef.current ? wrapRef.current.closest('.sheet') : null;
-      dragRef.current = { y0: e.clientY, dy: 0 };
-      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
-    };
-    const onPointerMove = (e) => {
-      if (!dragRef.current) return;
-      const dy = Math.max(0, e.clientY - dragRef.current.y0);
-      dragRef.current.dy = dy;
-      setSheetTransform(dy, false);
-    };
-    const onPointerUp = () => {
-      if (!dragRef.current) return;
-      const dy = dragRef.current.dy;
-      dragRef.current = null;
-      if (dy > 90) {
-        // Animate fully off-screen, then close.
-        const el = sheetRef.current;
-        if (el) {
-          el.style.transition = 'transform 200ms ease-in';
-          el.style.transform = 'translateY(100%)';
+      let sheetEl = null;
+      let dragging = false;
+      let y0 = 0;
+      let dy = 0;
+
+      const setTransform = (y, animate) => {
+        if (!sheetEl) return;
+        sheetEl.style.transition = animate ? 'transform 220ms cubic-bezier(.2,.7,.3,1)' : 'none';
+        sheetEl.style.transform = y > 0 ? `translateY(${y}px)` : '';
+      };
+
+      const onTouchStart = (e) => {
+        if (!e.touches || e.touches.length !== 1) return;
+        sheetEl = wrap.closest('.sheet');
+        dragging = true;
+        y0 = e.touches[0].clientY;
+        dy = 0;
+        // Stop the parent .sheet from intercepting this gesture as a scroll.
+        e.preventDefault();
+      };
+      const onTouchMove = (e) => {
+        if (!dragging || !e.touches || e.touches.length !== 1) return;
+        dy = Math.max(0, e.touches[0].clientY - y0);
+        setTransform(dy, false);
+        if (e.cancelable) e.preventDefault();
+      };
+      const onTouchEnd = () => {
+        if (!dragging) return;
+        dragging = false;
+        if (dy > 90) {
+          if (sheetEl) {
+            sheetEl.style.transition = 'transform 200ms ease-in';
+            sheetEl.style.transform = 'translateY(100%)';
+          }
+          setTimeout(() => onClose?.(), 180);
+        } else {
+          setTransform(0, true);
         }
-        setTimeout(() => onClose?.(), 180);
-      } else {
-        setSheetTransform(0, true);
-      }
-    };
-    const onPointerCancel = () => {
-      if (!dragRef.current) return;
-      dragRef.current = null;
-      setSheetTransform(0, true);
-    };
+      };
+
+      // Mouse fallback (desktop / dev tools)
+      const onMouseDown = (e) => {
+        sheetEl = wrap.closest('.sheet');
+        dragging = true;
+        y0 = e.clientY;
+        dy = 0;
+        e.preventDefault();
+      };
+      const onMouseMove = (e) => {
+        if (!dragging) return;
+        dy = Math.max(0, e.clientY - y0);
+        setTransform(dy, false);
+      };
+      const onMouseUp = () => {
+        if (!dragging) return;
+        dragging = false;
+        if (dy > 90) {
+          if (sheetEl) {
+            sheetEl.style.transition = 'transform 200ms ease-in';
+            sheetEl.style.transform = 'translateY(100%)';
+          }
+          setTimeout(() => onClose?.(), 180);
+        } else {
+          setTransform(0, true);
+        }
+      };
+
+      wrap.addEventListener('touchstart', onTouchStart, { passive: false });
+      document.addEventListener('touchmove',   onTouchMove, { passive: false });
+      document.addEventListener('touchend',    onTouchEnd);
+      document.addEventListener('touchcancel', onTouchEnd);
+
+      wrap.addEventListener('mousedown', onMouseDown);
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup',   onMouseUp);
+
+      return () => {
+        wrap.removeEventListener('touchstart', onTouchStart);
+        document.removeEventListener('touchmove',   onTouchMove);
+        document.removeEventListener('touchend',    onTouchEnd);
+        document.removeEventListener('touchcancel', onTouchEnd);
+        wrap.removeEventListener('mousedown', onMouseDown);
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup',   onMouseUp);
+      };
+    }, [onClose]);
 
     return (
-      <div
-        ref={wrapRef}
-        className="sheet-grab-tap"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        aria-label="Drag down to close"
-        role="button"
-      >
+      <div ref={wrapRef} className="sheet-grab-tap" role="button" aria-label="Drag down to close">
         <div className="sheet-grab" />
       </div>
     );
@@ -3859,23 +3922,53 @@
   function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, location, setLocation, showToast }) {
     const [locBusy, setLocBusy] = useState(false);
     const [locErr, setLocErr] = useState(null);
+    // Each enable attempt bumps the counter; later results that come back
+    // after the user re-tapped (or after our wallclock timeout fired) are
+    // ignored. This stops a stuck/cancelled prompt from leaving the toggle
+    // wedged in a busy state forever.
+    const attemptRef = useRef(0);
 
     const enableLocation = async () => {
+      const myAttempt = ++attemptRef.current;
       setLocBusy(true); setLocErr(null);
+      // Floor the busy state so a re-tap after a cached browser denial — which
+      // returns synchronously in <10ms — still registers visibly as a spinner
+      // flash. Without this, repeated taps look like nothing happened.
+      const minBusyUntil = Date.now() + 300;
       try {
         const { lat, lon } = await requestGeolocationOnce();
+        if (myAttempt !== attemptRef.current) return;
         const { label, country } = await reverseGeocode(lat, lon);
+        if (myAttempt !== attemptRef.current) return;
         setLocation({ lat, lon, label, country, ts: Date.now() });
         showToast?.(`Location set: ${label}`, 'success');
       } catch (e) {
+        if (myAttempt !== attemptRef.current) return;
         setLocErr(e.message || 'Could not get location');
       } finally {
-        setLocBusy(false);
+        const wait = Math.max(0, minBusyUntil - Date.now());
+        if (wait > 0) await new Promise(r => setTimeout(r, wait));
+        if (myAttempt === attemptRef.current) setLocBusy(false);
       }
     };
     const disableLocation = () => {
+      attemptRef.current++;
+      setLocBusy(false);
       setLocation(null);
       setLocErr(null);
+    };
+    // What happens when the user taps the toggle. If we're already busy,
+    // treat the tap as "give up and try again" — abandon the in-flight
+    // attempt by bumping the counter, then start a new one.
+    const onToggleTap = () => {
+      if (locBusy) {
+        attemptRef.current++;
+        setLocBusy(false);
+        // Fall through into enableLocation so the tap actually does
+        // something visible instead of just dismissing the spinner.
+      }
+      if (location) disableLocation();
+      else enableLocation();
     };
 
     return (
@@ -3926,13 +4019,28 @@
                     ? <>Suggesting subs likely stocked near <b>{location.label}</b></>
                     : <>Off — tap to allow. Used only when looking up ingredient subs.</>}
                 </div>
-                {locErr && (
-                  <div style={{fontSize: 12, color: 'oklch(0.55 0.18 25)', marginTop: 6}}>{locErr}</div>
+                {locBusy && (
+                  <div style={{fontSize: 12, color: 'var(--ink-3)', marginTop: 6}}>
+                    <span className="spinner" style={{marginRight: 6, verticalAlign: 'middle'}} />
+                    Asking your browser…
+                  </div>
+                )}
+                {!locBusy && locErr && (
+                  <div style={{fontSize: 12, color: 'oklch(0.55 0.18 25)', marginTop: 6, lineHeight: 1.4}}>
+                    {locErr}
+                    {/* If the browser cached a denial, re-tapping just gets the same error
+                       instantly. Tell the user where to fix it. */}
+                    {/permission denied/i.test(locErr) && (
+                      <div style={{color: 'var(--ink-3)', marginTop: 4}}>
+                        On iOS: Settings → Safari → Location, then re-tap the toggle.
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               <div
                 className={'toggle ' + (location ? 'on' : '')}
-                onClick={() => { if (locBusy) return; location ? disableLocation() : enableLocation(); }}
+                onClick={onToggleTap}
                 role="button"
                 aria-label="Toggle location"
                 aria-busy={locBusy}
@@ -4689,10 +4797,12 @@
       setDarkModeState(v);
       try { localStorage.setItem('recipes-dark', v ? 'true' : 'false'); } catch {}
     }, []);
-    useEffect(() => {
-      const root = document.querySelector('.app-root');
-      if (root) root.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-    }, [darkMode]);
+    // Theme attribute is now applied directly on each screen-level container
+    // via JSX (data-theme={dataTheme}) so it always survives screen swaps —
+    // welcome → loading → main, share-receive flow, etc. Don't rely on a
+    // useEffect + querySelector here: the first .app-root is unmounted as
+    // soon as we transition past it, and the effect doesn't re-fire.
+    const dataTheme = darkMode ? 'dark' : 'light';
     const [editingId, setEditingId] = useState(null);
     const [longPressed, setLongPressed] = useState(null);
     const [units, setUnitsState] = useState(() => defaultUnits());
@@ -4876,7 +4986,7 @@
     // can still see the recipe preview but need to connect to save.
     if (sharePayload && !unlocked) {
       return (
-        <div className="app-root">
+        <div className="app-root" data-theme={dataTheme}>
           <ShareReceiveScreen
             payload={sharePayload}
             onCancel={() => { window.location.hash = ''; setSharePayload(null); }}
@@ -4891,11 +5001,11 @@
       );
     }
 
-    if (!unlocked) return <WelcomeScreen />;
+    if (!unlocked) return <WelcomeScreen dataTheme={dataTheme} />;
 
     if (sharePayload) {
       return (
-        <div className="app-root">
+        <div className="app-root" data-theme={dataTheme}>
           <ShareReceiveScreen
             payload={sharePayload}
             onCancel={() => { window.location.hash = ''; setSharePayload(null); }}
@@ -4915,7 +5025,7 @@
     const editingRecipe = recipes.find(r => r.id === editingId);
 
     return (
-      <div className="app-root" style={{paddingBottom: '60px'}}>
+      <div className="app-root" data-theme={dataTheme} style={{paddingBottom: '60px'}}>
         {tab === 'recipes' && (
           <LibraryScreen
             recipes={recipes}

@@ -62,7 +62,8 @@ export default async function handler(req, res) {
 
     const nextItems = applyUpdates(current.items, result.updates, { fromRecipe });
     const saved = await saveList(dbxToken, nextItems);
-    return json(res, 200, { ...saved, updates: result.updates });
+    const __usage = result.usage ? [result.usage] : [];
+    return json(res, 200, { ...saved, updates: result.updates, __usage });
   } catch (e) {
     console.error('[shopping/add]', e);
     return json(res, 500, { error: e.message || 'internal error' });

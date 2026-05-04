@@ -1,20 +1,30 @@
 // api/shopping/alternatives.js
 //
 // "Can't find this at the store — what else works?" endpoint.
-// Suggests 3-5 alternatives for a shopping-list item. Recipe-aware when
+// Suggests 0-5 substitutes for a shopping-list item. Recipe-aware when
 // the item came from a recipe (suggestions tuned to that recipe's flavor
 // profile / role of the ingredient); generic otherwise.
+//
+// Provider strategy (cost-first, quality-fallback):
+//   1. Try Gemini Flash 2.0 — ~10-15× cheaper than Claude on text-only.
+//   2. If Gemini errors, returns malformed JSON, or returns zero usable
+//      alternatives, fall back to Claude Haiku for a second shot.
+//   3. Each call records token usage in the __usage array on the response
+//      so the client can track cost in dev-mode StatsSheet.
 //
 // POST /api/shopping/alternatives
 // body:
 //   { name: "olive oil", qty?: "...", note?: "...",
-//     recipe?: { title, ingredientLines: [string], purpose?: string } }
-// response: { alternatives: [{ name, why }, ...] }
+//     recipe?: { title, ingredientLines: [string] },
+//     location?: { label: "Lisbon, Portugal", country: "Portugal" } }
+// response: { alternatives: [{ name, confidence, why }, ...], __usage: [...] }
 
 import { humanizeApiError } from '../../lib/recipe-extract.js';
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const CLAUDE_MODEL  = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
+const GEMINI_KEY    = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL  = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -28,8 +38,8 @@ export default async function handler(req, res) {
   try { body = await readJsonBody(req); } catch { return json(res, 400, { error: 'bad body' }); }
   if (!body || !body.name) return json(res, 400, { error: 'missing name' });
 
-  if (!ANTHROPIC_KEY) {
-    return json(res, 500, { error: 'ANTHROPIC_API_KEY required for alternatives' });
+  if (!ANTHROPIC_KEY && !GEMINI_KEY) {
+    return json(res, 500, { error: 'ANTHROPIC_API_KEY or GEMINI_API_KEY required for alternatives' });
   }
 
   const itemName = String(body.name).trim();
@@ -125,46 +135,123 @@ Rules:
 - Prefer items commonly available at any grocery store.${locationBlock}`;
   }
 
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 800,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-    if (!r.ok) {
-      const err = await r.text();
-      return json(res, r.status, { error: humanizeApiError('Anthropic', r.status, err) });
+  const usage = [];
+  // 1) Gemini Flash first.
+  if (GEMINI_KEY) {
+    try {
+      const r = await callGemini(prompt);
+      usage.push(r.usage);
+      if (r.alternatives.length > 0) {
+        return json(res, 200, { alternatives: r.alternatives, __usage: usage, provider: 'gemini' });
+      }
+      // Gemini returned valid JSON but no usable alternatives — let Claude have a try.
+      console.log('[alternatives] gemini returned 0 alternatives, falling through to claude');
+    } catch (err) {
+      console.warn('[alternatives] gemini failed, falling through to claude:', err.message);
     }
-    const cBody = await r.json();
-    const content = (cBody.content || []).map(c => c.text || '').join('').trim();
-    const m = content.match(/\{[\s\S]*\}/);
-    if (!m) return json(res, 500, { error: 'Claude returned no JSON' });
-    let parsed;
-    try { parsed = JSON.parse(m[0]); } catch { return json(res, 500, { error: 'malformed JSON from Claude' }); }
-    // Defense-in-depth: even though the prompt forbids it, drop any "low"-confidence
-    // entries the model slips through. Unknown/missing confidence is treated as
-    // acceptable (older response shapes / generic queries).
-    const raw = Array.isArray(parsed.alternatives) ? parsed.alternatives : [];
-    const alternatives = raw
-      .filter(a => a && a.name)
-      .filter(a => {
-        const c = String(a.confidence || '').toLowerCase();
-        return c !== 'low';
-      })
-      .slice(0, 5);
-    return json(res, 200, { alternatives });
-  } catch (e) {
-    console.error('[alternatives]', e);
-    return json(res, 500, { error: e.message || 'internal error' });
   }
+
+  // 2) Claude fallback.
+  if (!ANTHROPIC_KEY) {
+    return json(res, 500, { error: 'Gemini failed and no Anthropic key configured for fallback', __usage: usage });
+  }
+  try {
+    const r = await callClaude(prompt);
+    usage.push(r.usage);
+    return json(res, 200, { alternatives: r.alternatives, __usage: usage, provider: 'claude' });
+  } catch (err) {
+    console.error('[alternatives] claude fallback failed:', err);
+    return json(res, 500, { error: err.message || 'internal error', __usage: usage });
+  }
+}
+
+// Filter "low"-confidence guesses defensively even though the prompt forbids them.
+function sanitizeAlternatives(parsed) {
+  const raw = Array.isArray(parsed && parsed.alternatives) ? parsed.alternatives : [];
+  return raw
+    .filter(a => a && a.name)
+    .filter(a => String(a.confidence || '').toLowerCase() !== 'low')
+    .slice(0, 5);
+}
+
+async function callGemini(prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_KEY}`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      // responseMimeType + responseSchema would be ideal, but Gemini's
+      // schema support is restrictive on nested objects. Asking for plain
+      // JSON with the prompt (which already says "ONLY a JSON object") and
+      // parsing defensively works fine for this small payload.
+      generationConfig: { temperature: 0.4, maxOutputTokens: 800, responseMimeType: 'application/json' },
+    }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(humanizeApiError('Gemini', r.status, t));
+  }
+  const body = await r.json();
+  const text = (body.candidates || [])
+    .flatMap(c => (c.content && c.content.parts) || [])
+    .map(p => p.text || '')
+    .join('')
+    .trim();
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('Gemini returned no JSON');
+  let parsed;
+  try { parsed = JSON.parse(m[0]); }
+  catch { throw new Error('malformed JSON from Gemini'); }
+  const um = body.usageMetadata || {};
+  return {
+    alternatives: sanitizeAlternatives(parsed),
+    usage: {
+      provider: 'gemini',
+      model: GEMINI_MODEL,
+      inputTokens: um.promptTokenCount || 0,
+      outputTokens: um.candidatesTokenCount || 0,
+      ts: Date.now(),
+    },
+  };
+}
+
+async function callClaude(prompt) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 800,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(humanizeApiError('Anthropic', r.status, t));
+  }
+  const body = await r.json();
+  const content = (body.content || []).map(c => c.text || '').join('').trim();
+  const m = content.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('Claude returned no JSON');
+  let parsed;
+  try { parsed = JSON.parse(m[0]); }
+  catch { throw new Error('malformed JSON from Claude'); }
+  const u = body.usage || {};
+  return {
+    alternatives: sanitizeAlternatives(parsed),
+    usage: {
+      provider: 'anthropic',
+      model: CLAUDE_MODEL,
+      inputTokens: u.input_tokens || 0,
+      outputTokens: u.output_tokens || 0,
+      ts: Date.now(),
+    },
+  };
 }
 
 function json(res, status, body) {

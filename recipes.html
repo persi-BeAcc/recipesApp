@@ -1986,7 +1986,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.31';
+  const APP_VERSION       = 'v2026.05.02.32';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -2015,6 +2015,13 @@
       let data;
       try { data = text ? JSON.parse(text) : null; } catch { data = { error: text }; }
       if (!r.ok) throw new Error((data && data.error) || `HTTP ${r.status}`);
+      // Endpoints can attach a __usage array (token counts per external API
+      // call). We persist locally so the dev-mode StatsSheet can show
+      // approximate cost. Always append, regardless of dev mode — toggling on
+      // shouldn't hide history that was generated while it was off.
+      if (data && Array.isArray(data.__usage) && data.__usage.length > 0) {
+        try { appendUsage(data.__usage); } catch {}
+      }
       return data;
     });
   }
@@ -2208,6 +2215,121 @@
         { enableHighAccuracy: false, timeout: 12000, maximumAge: 60 * 60 * 1000 }
       );
     });
+  }
+
+  // ---------- Dev mode + API usage tracking ----------
+  // Server endpoints can attach a __usage array to their response. We append
+  // those entries to localStorage so the dev-mode StatsSheet can show
+  // approximate cost per provider/model. Estimates only — actual billing is
+  // whatever the providers say it is.
+  const DEV_MODE_KEY = 'recipes-dev-mode-v1';
+  const USAGE_KEY = 'recipes-usage-v1';
+  const USAGE_MAX_ENTRIES = 1000;  // ring-buffer cap so localStorage doesn't bloat
+
+  function loadDevMode() {
+    try { return localStorage.getItem(DEV_MODE_KEY) === 'true'; } catch { return false; }
+  }
+  function saveDevMode(on) {
+    try { localStorage.setItem(DEV_MODE_KEY, on ? 'true' : 'false'); } catch {}
+  }
+  function loadUsage() {
+    try {
+      const raw = localStorage.getItem(USAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+  function saveUsage(arr) {
+    try { localStorage.setItem(USAGE_KEY, JSON.stringify(arr.slice(-USAGE_MAX_ENTRIES))); } catch {}
+  }
+  function appendUsage(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) return;
+    const current = loadUsage();
+    const stamped = entries
+      .filter(e => e && typeof e === 'object')
+      .map(e => ({ ts: Date.now(), ...e }));
+    saveUsage(current.concat(stamped));
+  }
+  function clearUsage() { saveUsage([]); }
+
+  // Approximate prices per provider/model.
+  // Sources: Anthropic + Google + OpenAI public pricing pages, mid-2025.
+  // Update if the pricing pages change. Tokens priced per million.
+  const PRICING = {
+    anthropic: {
+      'claude-haiku-4-5-20251001': { in: 1.00,  out: 5.00,  unit: 'token' },
+      'claude-haiku-4-5':          { in: 1.00,  out: 5.00,  unit: 'token' },
+      'claude-sonnet-4-5':         { in: 3.00,  out: 15.00, unit: 'token' },
+      _default:                    { in: 1.00,  out: 5.00,  unit: 'token' },
+    },
+    gemini: {
+      'gemini-2.0-flash':          { in: 0.075, out: 0.30, unit: 'token' },
+      'gemini-2.0-flash-exp':      { in: 0.075, out: 0.30, unit: 'token' },
+      'gemini-2.5-flash':          { in: 0.075, out: 0.30, unit: 'token' },
+      _default:                    { in: 0.10,  out: 0.40, unit: 'token' },
+    },
+    openai: {
+      'whisper-1':                 { perMinute: 0.006,    unit: 'minute' },
+      _default:                    { perMinute: 0.006,    unit: 'minute' },
+    },
+    rapidapi: {
+      _default:                    { perCall: 0.001,      unit: 'call' },
+    },
+  };
+
+  // Estimate USD for a single usage entry.
+  function priceUsage(entry) {
+    const provider = (entry.provider || '').toLowerCase();
+    const family = PRICING[provider];
+    if (!family) return 0;
+    const rate = family[entry.model] || family._default;
+    if (!rate) return 0;
+    if (rate.unit === 'token') {
+      const input  = (entry.inputTokens  || 0) * (rate.in  / 1_000_000);
+      const output = (entry.outputTokens || 0) * (rate.out / 1_000_000);
+      return input + output;
+    }
+    if (rate.unit === 'minute') {
+      const seconds = entry.audioSeconds || 0;
+      return (seconds / 60) * rate.perMinute;
+    }
+    if (rate.unit === 'call') {
+      return rate.perCall;
+    }
+    return 0;
+  }
+
+  function summarizeUsage(entries) {
+    // Group by provider+model, sum counts/tokens/cost.
+    const groups = {};
+    let totalCost = 0;
+    let totalCalls = 0;
+    for (const e of entries) {
+      const key = `${e.provider || '?'}::${e.model || 'unknown'}`;
+      if (!groups[key]) {
+        groups[key] = {
+          provider: e.provider || '?',
+          model: e.model || 'unknown',
+          calls: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          audioSeconds: 0,
+          cost: 0,
+        };
+      }
+      const g = groups[key];
+      g.calls += 1;
+      g.inputTokens  += e.inputTokens  || 0;
+      g.outputTokens += e.outputTokens || 0;
+      g.audioSeconds += e.audioSeconds || 0;
+      const price = priceUsage(e);
+      g.cost += price;
+      totalCost += price;
+      totalCalls += 1;
+    }
+    const list = Object.values(groups).sort((a, b) => b.cost - a.cost);
+    return { groups: list, totalCost, totalCalls };
   }
 
   function parseQty(s) {
@@ -3923,7 +4045,7 @@
   // ---------- Settings sheet ----------
   // Centralized place for connection status, dark mode, and stats. Replaces
   // the previous header-icon clutter with a single ⚙ button.
-  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, location, setLocation, showToast }) {
+  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, location, setLocation, devMode, setDevMode, showToast }) {
     const [locBusy, setLocBusy] = useState(false);
     const [locErr, setLocErr] = useState(null);
     // Each enable attempt bumps the counter; later results that come back
@@ -4107,6 +4229,25 @@
             </button>
           </div>
 
+          <div className="settings-section">
+            <h3 className="filter-section-title">Developer</h3>
+            <div className="setting-row" style={{borderBottom: 'none'}}>
+              <div style={{minWidth: 0, flex: 1}}>
+                <div className="setting-row-label">Dev mode</div>
+                <div className="setting-row-sub">
+                  Show API usage + estimated cost in Kitchen stats. Off by default.
+                </div>
+              </div>
+              <div
+                className={'toggle ' + (devMode ? 'on' : '')}
+                onClick={() => setDevMode(!devMode)}
+                role="button"
+                aria-label="Toggle developer mode"
+                tabIndex={0}
+              />
+            </div>
+          </div>
+
           <p style={{textAlign: 'center', color: 'var(--ink-3)', fontSize: 11, fontFamily: 'var(--font-mono)', marginTop: 16, marginBottom: 0}}>
             {APP_VERSION}
           </p>
@@ -4120,7 +4261,10 @@
   // worked (which extraction paths the user is hitting), how often each
   // recipe gets cooked, and which tags dominate. Honest dashboard for "is
   // this app actually useful for me?"
-  function StatsSheet({ recipes, onClose }) {
+  function StatsSheet({ recipes, devMode, onClose }) {
+    // Re-read on every open so freshly-tracked calls appear without a remount.
+    const usageEntries = useMemo(() => devMode ? loadUsage() : [], [devMode]);
+    const usageSummary = useMemo(() => devMode ? summarizeUsage(usageEntries) : null, [devMode, usageEntries]);
     const stats = useMemo(() => {
       const byPath = {};
       let cookedTotal = 0;
@@ -4213,8 +4357,81 @@
               </div>
             </>
           )}
+
+          {devMode && (
+            <UsagePanel summary={usageSummary} entryCount={usageEntries.length} />
+          )}
         </div>
       </div>
+    );
+  }
+
+  // ---------- API usage panel (dev mode only) ----------
+  // Reads token counts collected by apiRequest from each endpoint's __usage
+  // array and renders an approximate cost breakdown by provider+model.
+  function UsagePanel({ summary, entryCount }) {
+    const fmtUSD = (n) => {
+      if (!n) return '$0.00';
+      if (n < 0.01) return '<$0.01';
+      return '$' + n.toFixed(n < 1 ? 4 : 2);
+    };
+    const onClear = () => {
+      if (!confirm('Clear local API usage history? This only resets the in-app counter, not your real provider bills.')) return;
+      clearUsage();
+      // Force the StatsSheet to re-read on next open. For now we just reload.
+      window.location.reload();
+    };
+    return (
+      <>
+        <h3 className="filter-section-title" style={{display: 'flex', alignItems: 'center', gap: 8}}>
+          API usage
+          <span style={{fontSize: 9, padding: '2px 6px', background: 'var(--bg-sunk)', border: '1px solid var(--line)', borderRadius: 999, color: 'var(--ink-3)', letterSpacing: '0.04em'}}>DEV</span>
+        </h3>
+        {!summary || summary.totalCalls === 0 ? (
+          <p style={{color: 'var(--ink-3)', fontSize: 13, margin: '4px 0 0'}}>
+            No tracked calls yet. Try importing a recipe or asking for ingredient alternatives.
+          </p>
+        ) : (
+          <>
+            <div className="stats-row" style={{marginBottom: 10}}>
+              <div className="stat-card">
+                <div className="stat-value" style={{fontSize: 22}}>{fmtUSD(summary.totalCost)}</div>
+                <div className="stat-label">Estimated total</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value" style={{fontSize: 22}}>{summary.totalCalls}</div>
+                <div className="stat-label">Calls tracked</div>
+              </div>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12}}>
+              {summary.groups.map(g => (
+                <div key={g.provider + '::' + g.model} style={{display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)'}}>
+                  <div style={{flex: 1, minWidth: 0}}>
+                    <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                      {g.provider} · <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-2)'}}>{g.model}</span>
+                    </div>
+                    <div style={{fontSize: 11, color: 'var(--ink-3)', marginTop: 2}}>
+                      {g.calls} call{g.calls === 1 ? '' : 's'}
+                      {g.inputTokens > 0 && <> · {g.inputTokens.toLocaleString()} in</>}
+                      {g.outputTokens > 0 && <> · {g.outputTokens.toLocaleString()} out</>}
+                      {g.audioSeconds > 0 && <> · {(g.audioSeconds / 60).toFixed(1)} min audio</>}
+                    </div>
+                  </div>
+                  <div style={{fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', whiteSpace: 'nowrap'}}>
+                    {fmtUSD(g.cost)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p style={{fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.4, marginTop: 4}}>
+              Approximate. Prices baked into the app from public rate cards (mid-2025); update when they change. Tracking only includes responses that returned a <code>__usage</code> field — alternatives is wired today; other endpoints will start counting as they're instrumented.
+            </p>
+            <button className="ghost-btn" onClick={onClear} style={{width: '100%', marginTop: 8}}>
+              Clear usage history ({entryCount} entries)
+            </button>
+          </>
+        )}
+      </>
     );
   }
 
@@ -4829,6 +5046,8 @@
     const setUnits = useCallback((u) => { setUnitsState(u); saveUnits(u); }, []);
     const [location, setLocationState] = useState(() => loadLocation());
     const setLocation = useCallback((loc) => { setLocationState(loc); saveLocation(loc); }, []);
+    const [devMode, setDevModeState] = useState(() => loadDevMode());
+    const setDevMode = useCallback((b) => { setDevModeState(b); saveDevMode(b); }, []);
     const [showToast, toastNode] = useToast();
 
     const refresh = useCallback(async () => {
@@ -5120,6 +5339,7 @@
         {showStats && (
           <StatsSheet
             recipes={recipes}
+            devMode={devMode}
             onClose={() => setShowStats(false)}
           />
         )}
@@ -5164,6 +5384,8 @@
             setUnits={setUnits}
             location={location}
             setLocation={setLocation}
+            devMode={devMode}
+            setDevMode={setDevMode}
             showToast={showToast}
             onSignOut={async () => {
               if (!confirm('Disconnect Dropbox? Your recipes stay safe — you can reconnect anytime.')) return;

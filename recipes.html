@@ -348,6 +348,31 @@
       font-size: 11px;
       color: var(--ink-3);
     }
+    /* Swipe action backgrounds — revealed when the row translates */
+    .shop-row-wrap {
+      position: relative;
+      overflow: hidden;
+    }
+    .shop-swipe-bg {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      gap: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: oklch(0.99 0 0);
+      pointer-events: none;
+    }
+    .shop-swipe-remove {
+      background: oklch(0.50 0.16 25);
+      justify-content: flex-start;
+    }
+    .shop-swipe-alt {
+      background: oklch(0.46 0.10 230);
+      justify-content: flex-end;
+    }
     .shop-actions-bar {
       display: flex;
       gap: 8px;
@@ -881,7 +906,8 @@
     .fab {
       position: fixed;
       right: max(18px, calc((100vw - 720px) / 2 + 18px));
-      bottom: calc(24px + env(safe-area-inset-bottom));
+      /* Sits above the bottom tab bar (~52px tall) with a gap. */
+      bottom: calc(74px + env(safe-area-inset-bottom));
       width: 56px;
       height: 56px;
       border-radius: 50%;
@@ -1937,7 +1963,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.23';
+  const APP_VERSION       = 'v2026.05.02.24';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -1986,6 +2012,7 @@
     shoppingSave:   (items)         => apiRequest('/api/shopping', { method: 'PUT', body: { items } }),
     shoppingClear:  ()              => apiRequest('/api/shopping', { method: 'DELETE' }),
     shoppingAdd:    (body)          => apiRequest('/api/shopping/add', { method: 'POST', body }),
+    shoppingAlternatives: (body)    => apiRequest('/api/shopping/alternatives', { method: 'POST', body }),
   };
 
   // ---------- URL classification ----------
@@ -3214,7 +3241,7 @@
     other:     '🛒 Other',
   };
 
-  function ShoppingScreen({ items, onToggle, onClearChecked, onClearAll, onOpenAdd, onOpenSettings, recipes }) {
+  function ShoppingScreen({ items, onToggle, onRemove, onAlternatives, onClearChecked, onClearAll, onOpenAdd, recipes }) {
     // Group by category — checked items stay in place (strikethrough only),
     // they don't move to a separate section. Order within a category is the
     // order items were added.
@@ -3241,19 +3268,6 @@
               {totalPending} {totalPending === 1 ? 'item' : 'items'}
               {totalChecked > 0 && <> · {totalChecked} got</>}
             </div>
-          </div>
-          <div className="search-row">
-            <button
-              className="filter-btn"
-              onClick={onOpenSettings}
-              aria-label="Settings"
-              style={{marginLeft: 'auto'}}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </button>
           </div>
         </div>
 
@@ -3283,7 +3297,7 @@
                   <div className="shop-category-heading">{SHOP_CATEGORY_LABEL[cat] || cat}</div>
                   <ul className="shop-list">
                     {list.map(it => (
-                      <ShoppingRow key={it.id} item={it} onToggle={onToggle} recipes={recipes} />
+                      <ShoppingRow key={it.id} item={it} onToggle={onToggle} onRemove={onRemove} onAlternatives={onAlternatives} recipes={recipes} />
                     ))}
                   </ul>
                 </div>
@@ -3297,28 +3311,202 @@
     );
   }
 
-  function ShoppingRow({ item, onToggle, recipes }) {
+  function ShoppingRow({ item, onToggle, onRemove, onAlternatives, recipes }) {
     const fromRecipe = item.fromRecipes && item.fromRecipes.length
       ? (recipes || []).find(r => r.id === item.fromRecipes[0])
       : null;
+
+    const [swipeX, setSwipeX] = useState(0);
+    const startRef = useRef(null);
+    const longPressTimer = useRef(null);
+    const longPressFired = useRef(false);
+
+    const onPointerDown = (e) => {
+      startRef.current = { x: e.clientX, y: e.clientY, t: Date.now(), captured: false, abandoned: false };
+      longPressFired.current = false;
+      longPressTimer.current = setTimeout(() => {
+        if (startRef.current && !startRef.current.abandoned) {
+          longPressFired.current = true;
+          if (navigator.vibrate) navigator.vibrate(10);
+          // Long-press → trigger the same "alternatives" sheet (also has remove option inside)
+          onAlternatives?.(item);
+        }
+      }, 480);
+    };
+    const onPointerMove = (e) => {
+      if (!startRef.current || startRef.current.abandoned) return;
+      const dx = e.clientX - startRef.current.x;
+      const dy = e.clientY - startRef.current.y;
+      // Vertical scroll commitment — abandon swipe.
+      if (!startRef.current.captured && Math.abs(dy) > Math.abs(dx) + 4) {
+        startRef.current.abandoned = true;
+        clearTimeout(longPressTimer.current);
+        return;
+      }
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) clearTimeout(longPressTimer.current);
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        if (!startRef.current.captured) {
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+          startRef.current.captured = true;
+        }
+        setSwipeX(Math.max(-160, Math.min(160, dx)));
+      }
+    };
+    const onPointerUp = (e) => {
+      clearTimeout(longPressTimer.current);
+      if (!startRef.current) return;
+      const { x, y, t, captured, abandoned } = startRef.current;
+      const dx = e.clientX - x;
+      const dy = e.clientY - y;
+      const dt = Date.now() - t;
+      startRef.current = null;
+      if (abandoned) return;
+
+      const threshold = 80;
+      if (swipeX > threshold) {
+        // Swipe right → remove
+        setSwipeX(0);
+        onRemove?.(item);
+        return;
+      }
+      if (swipeX < -threshold) {
+        // Swipe left → alternatives
+        setSwipeX(0);
+        onAlternatives?.(item);
+        return;
+      }
+      setSwipeX(0);
+      // Tap (no swipe, no long-press) → toggle checked
+      if (!longPressFired.current && !captured && Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 500) {
+        onToggle?.(item.id);
+      }
+    };
+    const onPointerCancel = () => {
+      clearTimeout(longPressTimer.current);
+      setSwipeX(0);
+      startRef.current = null;
+    };
+
     return (
-      <li className={'shop-row ' + (item.checked ? 'checked' : '')} onClick={() => onToggle(item.id)}>
-        <span className="shop-check">
-          {item.checked && (
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <path d="M5 13l4 4 10-10" />
-            </svg>
+      <div className="shop-row-wrap">
+        <div className="shop-swipe-bg shop-swipe-remove" aria-hidden>
+          <span style={{fontSize: 16}}>🗑</span><span>Remove</span>
+        </div>
+        <div className="shop-swipe-bg shop-swipe-alt" aria-hidden>
+          <span>Alternatives</span><span style={{fontSize: 16}}>🔁</span>
+        </div>
+        <li
+          className={'shop-row ' + (item.checked ? 'checked' : '')}
+          style={{
+            transform: swipeX ? `translateX(${swipeX}px)` : undefined,
+            transition: swipeX === 0 ? 'transform 220ms cubic-bezier(.2,.9,.3,1.1)' : 'none',
+            position: 'relative',
+            zIndex: 1,
+            background: 'var(--bg)',
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+        >
+          <span className="shop-check">
+            {item.checked && (
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                <path d="M5 13l4 4 10-10" />
+              </svg>
+            )}
+          </span>
+          <div className="shop-content">
+            <div className="shop-name">{item.name}</div>
+            <div className="shop-meta">
+              {item.qty && <span className="shop-qty">{item.qty}</span>}
+              {item.note && <span className="shop-note">· {item.note}</span>}
+              {fromRecipe && <span className="shop-from-recipe">· from {fromRecipe.title}</span>}
+            </div>
+          </div>
+        </li>
+      </div>
+    );
+  }
+
+  // ---------- Alternatives sheet ----------
+  function AlternativesSheet({ item, recipe, onClose, onSwap, onRemove }) {
+    const [alts, setAlts] = useState(null);
+    const [err, setErr] = useState(null);
+
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const body = {
+            name: item.name,
+            qty: item.qty,
+            note: item.note,
+          };
+          if (recipe) {
+            body.recipe = {
+              title: recipe.title,
+              ingredientLines: (recipe.ingredients || []).filter(s => !/^—.*—$/.test(s)),
+            };
+          }
+          const r = await api.shoppingAlternatives(body);
+          if (!cancelled) setAlts(r.alternatives || []);
+        } catch (e) {
+          if (!cancelled) setErr(e.message || 'Could not load alternatives');
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [item, recipe]);
+
+    return (
+      <div className="sheet-overlay" onClick={onClose}>
+        <div className="sheet" onClick={e => e.stopPropagation()}>
+          <div className="sheet-grab" />
+          <h2 className="sheet-title">Can't find {item.name}?</h2>
+          <p className="sheet-sub">
+            {recipe
+              ? <>Alternatives that work in <b>{recipe.title}</b>:</>
+              : <>Generic substitutes that usually work:</>}
+          </p>
+
+          {err && <div className="error-box">{err}</div>}
+          {!alts && !err && (
+            <div style={{textAlign: 'center', padding: 28, color: 'var(--ink-3)'}}>
+              <span className="spinner" /> Asking Claude…
+            </div>
           )}
-        </span>
-        <div className="shop-content">
-          <div className="shop-name">{item.name}</div>
-          <div className="shop-meta">
-            {item.qty && <span className="shop-qty">{item.qty}</span>}
-            {item.note && <span className="shop-note">· {item.note}</span>}
-            {fromRecipe && <span className="shop-from-recipe">· from {fromRecipe.title}</span>}
+
+          {alts && alts.length > 0 && (
+            <ul style={{listStyle: 'none', padding: 0, margin: '0 0 16px'}}>
+              {alts.map((a, i) => (
+                <li key={i} style={{display: 'flex', gap: 10, alignItems: 'center', padding: '12px 4px', borderBottom: '1px solid var(--line)'}}>
+                  <div style={{flex: 1, minWidth: 0}}>
+                    <div style={{fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 2}}>{a.name}</div>
+                    <div style={{fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.4}}>{a.why}</div>
+                  </div>
+                  <button
+                    className="chip"
+                    style={{flexShrink: 0}}
+                    onClick={() => onSwap(item, a.name)}
+                  >
+                    Use this
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {alts && alts.length === 0 && !err && (
+            <p style={{color: 'var(--ink-3)', textAlign: 'center', padding: 14}}>No alternatives found.</p>
+          )}
+
+          <div className="sheet-actions">
+            <button className="ghost-btn" onClick={onClose}>Close</button>
+            <button className="danger-btn" onClick={() => onRemove(item)} style={{flex: 1, height: 46}}>
+              Remove from list
+            </button>
           </div>
         </div>
-      </li>
+      </div>
     );
   }
 
@@ -4242,6 +4430,7 @@
     const [tab, setTab] = useState('recipes'); // 'recipes' | 'shopping'
     const [shopping, setShopping] = useState({ items: [] });
     const [showAddShop, setShowAddShop] = useState(false);
+    const [altsTarget, setAltsTarget] = useState(null);  // {item, recipe} for AlternativesSheet
     const [darkMode, setDarkModeState] = useState(() => localStorage.getItem('recipes-dark') === 'true');
     const setDarkMode = useCallback((v) => {
       setDarkModeState(v);
@@ -4336,6 +4525,29 @@
       }
       if (lastResult) setShopping({ items: lastResult.items });
       showToast(`Added from ${recipeIds.length} ${recipeIds.length === 1 ? 'recipe' : 'recipes'}`);
+    };
+    const removeShopItem = async (itemOrId) => {
+      const id = typeof itemOrId === 'string' ? itemOrId : itemOrId.id;
+      const next = shopping.items.filter(it => it.id !== id);
+      setShopping({ items: next });
+      try { await api.shoppingSave(next); }
+      catch (e) { showToast('Could not remove: ' + e.message, 'error'); }
+    };
+    const openAltsForItem = (item) => {
+      const fromRecipeId = item.fromRecipes && item.fromRecipes[0];
+      const recipe = fromRecipeId ? recipes.find(r => r.id === fromRecipeId) : null;
+      setAltsTarget({ item, recipe });
+    };
+    const swapShopItem = async (item, newName) => {
+      const next = shopping.items.map(it =>
+        it.id === item.id
+          ? { ...it, name: String(newName).toLowerCase().trim() }
+          : it
+      );
+      setShopping({ items: next });
+      setAltsTarget(null);
+      try { await api.shoppingSave(next); showToast(`Swapped to ${newName}`); }
+      catch (e) { showToast('Could not save: ' + e.message, 'error'); }
     };
     const addShopFromOneRecipe = async (recipe) => {
       const items = (recipe.ingredients || []).filter(s => !/^—.*—$/.test(s));
@@ -4470,10 +4682,11 @@
             items={shopping.items}
             recipes={recipes}
             onToggle={toggleShopItem}
+            onRemove={removeShopItem}
+            onAlternatives={openAltsForItem}
             onClearChecked={clearCheckedShop}
             onClearAll={clearAllShop}
             onOpenAdd={() => setShowAddShop(true)}
-            onOpenSettings={() => setShowSettings(true)}
           />
         )}
 
@@ -4533,6 +4746,16 @@
             onAddTyped={addShopTyped}
             onAddPhoto={addShopPhoto}
             onAddFromRecipes={addShopFromRecipes}
+          />
+        )}
+
+        {altsTarget && (
+          <AlternativesSheet
+            item={altsTarget.item}
+            recipe={altsTarget.recipe}
+            onClose={() => setAltsTarget(null)}
+            onSwap={swapShopItem}
+            onRemove={(it) => { removeShopItem(it); setAltsTarget(null); }}
           />
         )}
 

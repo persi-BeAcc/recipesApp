@@ -491,6 +491,11 @@
 
     /* Settings sheet */
     .settings-section { margin-bottom: 24px; }
+    /* Tab variant of settings — same padding as .sheet so content layout
+       stays identical, just embedded in the page instead of overlaying. */
+    .settings-tab-screen {
+      padding: 18px 22px calc(80px + env(safe-area-inset-bottom));
+    }
     .setting-row {
       display: flex;
       align-items: center;
@@ -2058,7 +2063,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.39';
+  const APP_VERSION       = 'v2026.05.02.40';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -2517,80 +2522,94 @@
   // ---------- Pull-to-refresh hook ----------
   // Touch-only gesture that fires `onRefresh` when the user pulls down past
   // PTR_THRESHOLD while already scrolled to the top of the page. Returns
-  // {pullY, refreshing, attach} — `attach` is a ref-callback that wires the
-  // touch listeners onto a container element. Pull amount is dampened to
-  // mimic native iOS rubber-banding.
+  // {pullY, refreshing, dragging, containerRef}. Pull amount is dampened
+  // to mimic native iOS rubber-banding.
+  //
+  // IMPORTANT: handlers read pull/refreshing state through refs, not closure
+  // captures. An earlier version used useCallback handlers with state in
+  // their deps — touch listeners ended up wired with stale `pullY` values
+  // because attach() didn't clean up when its identity changed, and the
+  // OLDEST listener (with pullY=0) fired first on touchend, setting
+  // trackingRef=false before the latest one could trigger a refresh.
   const PTR_THRESHOLD = 70;        // pixels of pull required to trigger refresh
   const PTR_MAX_PULL = 120;        // visual cap so the indicator doesn't fly off
   function usePullToRefresh(onRefresh) {
-    const [pullY, setPullY] = useState(0);
-    const [refreshing, setRefreshing] = useState(false);
-    const [dragging, setDragging] = useState(false);
+    const [pullY, setPullYState] = useState(0);
+    const [refreshing, setRefreshingState] = useState(false);
+    const [dragging, setDraggingState] = useState(false);
+
+    // Refs that mirror state, so event handlers can read the latest values
+    // without needing to be re-bound when state changes.
+    const pullYRef = useRef(0);
+    const refreshingRef = useRef(false);
     const startYRef = useRef(0);
     const trackingRef = useRef(false);
+    const onRefreshRef = useRef(onRefresh);
+    useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
 
-    const onTouchStart = useCallback((e) => {
-      if (refreshing) return;
-      // Only engage when the page is genuinely at the top — otherwise the
-      // user is just scrolling normally and we shouldn't intercept.
-      const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-      if (scrollTop > 0) { trackingRef.current = false; return; }
-      trackingRef.current = true;
-      startYRef.current = e.touches[0].clientY;
-      setPullY(0);
-    }, [refreshing]);
+    const setPullY = useCallback((v) => { pullYRef.current = v; setPullYState(v); }, []);
+    const setRefreshing = useCallback((v) => { refreshingRef.current = v; setRefreshingState(v); }, []);
 
-    const onTouchMove = useCallback((e) => {
-      if (!trackingRef.current || refreshing) return;
-      const dy = e.touches[0].clientY - startYRef.current;
-      if (dy <= 0) {
-        // Pulling up or no movement — let normal scroll happen.
-        if (pullY !== 0) setPullY(0);
-        if (dragging) setDragging(false);
-        return;
-      }
-      // Dampening: y' = y * (1 - y/(4*MAX)). Pull feels strong at first then
-      // gradually resists past the threshold, matching native PTR feel.
-      const damped = Math.min(PTR_MAX_PULL, dy * 0.55);
-      setPullY(damped);
-      if (!dragging) setDragging(true);
-    }, [refreshing, pullY, dragging]);
+    const containerRef = useRef(null);
 
-    const onTouchEnd = useCallback(async () => {
-      if (!trackingRef.current) return;
-      trackingRef.current = false;
-      const triggered = pullY >= PTR_THRESHOLD;
-      setDragging(false);
-      if (triggered && !refreshing) {
-        setRefreshing(true);
-        setPullY(PTR_THRESHOLD);  // hold the indicator at threshold while refreshing
-        try { await onRefresh?.(); } catch {}
-        setRefreshing(false);
-        setPullY(0);
-      } else {
-        setPullY(0);
-      }
-    }, [pullY, refreshing, onRefresh]);
-
-    // ref-callback: when the container mounts, wire up listeners; on unmount,
-    // unwire. We use {passive: true} because we never call preventDefault —
-    // scrolling stays perfectly smooth while we observe the gesture.
-    const attach = useCallback((el) => {
+    useEffect(() => {
+      const el = containerRef.current;
       if (!el) return;
+
+      const onTouchStart = (e) => {
+        if (refreshingRef.current) return;
+        // Only engage when the page is genuinely at the top — otherwise the
+        // user is just scrolling normally and we shouldn't intercept.
+        const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+        if (scrollTop > 0) { trackingRef.current = false; return; }
+        trackingRef.current = true;
+        startYRef.current = e.touches[0].clientY;
+        setPullY(0);
+      };
+
+      const onTouchMove = (e) => {
+        if (!trackingRef.current || refreshingRef.current) return;
+        const dy = e.touches[0].clientY - startYRef.current;
+        if (dy <= 0) {
+          if (pullYRef.current !== 0) setPullY(0);
+          setDraggingState(false);
+          return;
+        }
+        const damped = Math.min(PTR_MAX_PULL, dy * 0.55);
+        setPullY(damped);
+        setDraggingState(true);
+      };
+
+      const onTouchEnd = async () => {
+        if (!trackingRef.current) return;
+        trackingRef.current = false;
+        const triggered = pullYRef.current >= PTR_THRESHOLD;
+        setDraggingState(false);
+        if (triggered && !refreshingRef.current) {
+          setRefreshing(true);
+          setPullY(PTR_THRESHOLD);  // hold indicator at threshold during refresh
+          try { await onRefreshRef.current?.(); } catch {}
+          setRefreshing(false);
+          setPullY(0);
+        } else {
+          setPullY(0);
+        }
+      };
+
+      // Passive: we never call preventDefault, so scroll stays smooth.
       el.addEventListener('touchstart', onTouchStart, { passive: true });
       el.addEventListener('touchmove',  onTouchMove,  { passive: true });
       el.addEventListener('touchend',   onTouchEnd,   { passive: true });
       el.addEventListener('touchcancel', onTouchEnd,  { passive: true });
-      // Stash the cleanup on the element so a later attach(null) can run it.
-      el.__ptrCleanup = () => {
+      return () => {
         el.removeEventListener('touchstart', onTouchStart);
         el.removeEventListener('touchmove',  onTouchMove);
         el.removeEventListener('touchend',   onTouchEnd);
         el.removeEventListener('touchcancel', onTouchEnd);
       };
-    }, [onTouchStart, onTouchMove, onTouchEnd]);
+    }, [setPullY, setRefreshing]);
 
-    return { pullY, refreshing, dragging, attach };
+    return { pullY, refreshing, dragging, containerRef };
   }
 
   // ---------- Icons ----------
@@ -2750,13 +2769,13 @@
   }
 
   // ---------- Library ----------
-  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onOpenSettings, onLongPress, onSwipeAction, onRefresh }) {
+  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onLongPress, onSwipeAction, onRefresh }) {
 
     // Pull-to-refresh — touchstart at scrollTop=0 + pull down past the
     // threshold triggers `onRefresh`. Catches in-flight imports queued
     // elsewhere (iOS Shortcut, share sheet) that may have completed since
     // page load.
-    const { pullY, refreshing, dragging, attach } = usePullToRefresh(onRefresh);
+    const { pullY, refreshing, dragging, containerRef } = usePullToRefresh(onRefresh);
     const ptrReady = pullY >= PTR_THRESHOLD;
 
     const allTags = useMemo(() => {
@@ -2813,7 +2832,7 @@
     if (filters.favorite) activeChips.push({ key: 'fav', group: 'favorite', val: true, label: '♥ Favorites' });
 
     return (
-      <div className="screen library-screen" ref={attach}>
+      <div className="screen library-screen" ref={containerRef}>
         <div className="lib-header">
           <div className="brand-row">
             <div className="brand">My Kitchen<span className="dot">.</span></div>
@@ -2841,16 +2860,6 @@
                 <path d="M4 6h16M7 12h10M10 18h4" />
               </svg>
               {fCount > 0 && <span className="filter-count">{fCount}</span>}
-            </button>
-            <button
-              className="filter-btn"
-              onClick={onOpenSettings}
-              aria-label="Settings"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
             </button>
           </div>
           {activeChips.length > 0 && (
@@ -4557,7 +4566,7 @@
     );
   }
 
-  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, language, setLanguage, location, setLocation, devMode, setDevMode, showToast }) {
+  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, language, setLanguage, location, setLocation, devMode, setDevMode, showToast, asTab = false }) {
     const [locBusy, setLocBusy] = useState(false);
     const [locErr, setLocErr] = useState(null);
     // Each enable attempt bumps the counter; later results that come back
@@ -4609,12 +4618,13 @@
       else enableLocation();
     };
 
-    return (
-      <div className="sheet-overlay" onClick={onClose}>
-        <div className="sheet" onClick={e => e.stopPropagation()}>
-          <SheetGrab onClose={onClose} />
-          <h2 className="sheet-title">Settings</h2>
-          <p className="sheet-sub">Customize your kitchen.</p>
+    // Body content is shared between the modal sheet and the bottom-tab
+    // screen. Only the outer wrapper, grab handle, and overlay differ.
+    const body = (
+      <>
+        {!asTab && <SheetGrab onClose={onClose} />}
+        <h2 className="sheet-title">Settings</h2>
+        <p className="sheet-sub">Customize your kitchen.</p>
 
           <div className="settings-section">
             <h3 className="filter-section-title">Appearance</h3>
@@ -4731,7 +4741,7 @@
 
           <div className="settings-section">
             <h3 className="filter-section-title">Library</h3>
-            <button className="setting-row-btn" onClick={() => { onClose(); onOpenStats(); }}>
+            <button className="setting-row-btn" onClick={() => { onClose?.(); onOpenStats(); }}>
               <div className="setting-row-label">
                 <span style={{fontSize: 16}}>📊</span>
                 <span>Kitchen stats</span>
@@ -4788,6 +4798,17 @@
           <p style={{textAlign: 'center', color: 'var(--ink-3)', fontSize: 11, fontFamily: 'var(--font-mono)', marginTop: 16, marginBottom: 0}}>
             {APP_VERSION}
           </p>
+      </>
+    );
+
+    // Tab variant: render as a regular screen (no overlay, no grab bar).
+    if (asTab) {
+      return <div className="screen settings-tab-screen">{body}</div>;
+    }
+    return (
+      <div className="sheet-overlay" onClick={onClose}>
+        <div className="sheet" onClick={e => e.stopPropagation()}>
+          {body}
         </div>
       </div>
     );
@@ -5584,8 +5605,7 @@
     }, [showImport, importInitialUrl, importExistingJobId]);
     const [showFilter, setShowFilter] = useState(false);
     const [showStats, setShowStats] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
-    const [tab, setTab] = useState('recipes'); // 'recipes' | 'shopping'
+    const [tab, setTab] = useState('recipes'); // 'recipes' | 'shopping' | 'settings'
     const [shopping, setShopping] = useState({ items: [] });
     const [showAddShop, setShowAddShop] = useState(false);
     const [altsTarget, setAltsTarget] = useState(null);  // {item, recipe} for AlternativesSheet
@@ -5895,7 +5915,6 @@
             onOpen={openRecipe}
             onOpenImport={() => setShowImport(true)}
             onOpenFilter={() => setShowFilter(true)}
-            onOpenSettings={() => setShowSettings(true)}
             onLongPress={(r) => setLongPressed(r)}
             onSwipeAction={(r, action) => {
               if (action === 'favorite') toggleFavorite(r.id);
@@ -5916,8 +5935,35 @@
             onOpenAdd={() => setShowAddShop(true)}
           />
         )}
+        {tab === 'settings' && (
+          <SettingsSheet
+            asTab
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            onOpenStats={() => setShowStats(true)}
+            recipesCount={recipes.length}
+            account={account}
+            units={units}
+            setUnits={setUnits}
+            language={language}
+            setLanguage={setLanguage}
+            location={location}
+            setLocation={setLocation}
+            devMode={devMode}
+            setDevMode={setDevMode}
+            showToast={showToast}
+            onSignOut={async () => {
+              if (!confirm('Disconnect Dropbox? Your recipes stay safe — you can reconnect anytime.')) return;
+              try { await api.disconnect(); } catch {}
+              localStorage.removeItem(DBX_TOKEN_KEY);
+              localStorage.removeItem(DBX_ACCOUNT_KEY);
+              localStorage.removeItem(RECIPES_CACHE_KEY);
+              window.location.reload();
+            }}
+          />
+        )}
 
-        {/* Bottom tab bar — switches between Recipes and Shopping. */}
+        {/* Bottom tab bar — Recipes / Shopping / Settings. */}
         <div className="tabs-bottom" role="tablist">
           <button
             className={'tab-bottom ' + (tab === 'recipes' ? 'active' : '')}
@@ -5946,6 +5992,17 @@
                 {shopping.items.filter(it => !it.checked).length}
               </span>
             )}
+          </button>
+          <button
+            className={'tab-bottom ' + (tab === 'settings' ? 'active' : '')}
+            onClick={() => setTab('settings')}
+            aria-label="Settings"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            Settings
           </button>
         </div>
 
@@ -5993,34 +6050,6 @@
           <button className="fab" onClick={() => setShowAddShop(true)} aria-label="Add to shopping list">
             <Icon.Plus />
           </button>
-        )}
-
-        {showSettings && (
-          <SettingsSheet
-            onClose={() => setShowSettings(false)}
-            darkMode={darkMode}
-            setDarkMode={setDarkMode}
-            onOpenStats={() => setShowStats(true)}
-            recipesCount={recipes.length}
-            account={account}
-            units={units}
-            setUnits={setUnits}
-            language={language}
-            setLanguage={setLanguage}
-            location={location}
-            setLocation={setLocation}
-            devMode={devMode}
-            setDevMode={setDevMode}
-            showToast={showToast}
-            onSignOut={async () => {
-              if (!confirm('Disconnect Dropbox? Your recipes stay safe — you can reconnect anytime.')) return;
-              try { await api.disconnect(); } catch {}
-              localStorage.removeItem(DBX_TOKEN_KEY);
-              localStorage.removeItem(DBX_ACCOUNT_KEY);
-              localStorage.removeItem(RECIPES_CACHE_KEY);
-              window.location.reload();
-            }}
-          />
         )}
 
         {longPressed && (

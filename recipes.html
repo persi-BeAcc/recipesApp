@@ -1986,7 +1986,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.33';
+  const APP_VERSION       = 'v2026.05.02.34';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -4045,6 +4045,100 @@
   // ---------- Settings sheet ----------
   // Centralized place for connection status, dark mode, and stats. Replaces
   // the previous header-icon clutter with a single ⚙ button.
+  // ---------- Sharing setup section ----------
+  // Web Share Target API in the manifest works on Android (Chrome lists the
+  // PWA in the share sheet automatically). It does NOT work on iOS — Safari
+  // hasn't shipped that part of the spec, even for installed PWAs. So on
+  // iOS we walk the user through building a 4-step iOS Shortcut that does
+  // the same thing: receives a URL from the share sheet, opens our app at
+  //   https://<origin>/?share=1&url=<encoded URL>
+  // The app's existing share-target boot effect handles the rest.
+  function SharingSection({ showToast }) {
+    const isIOS = (() => {
+      if (typeof navigator === 'undefined') return false;
+      const ua = navigator.userAgent || '';
+      // navigator.standalone is iOS-only (even when not installed it exists as `false`).
+      if (typeof navigator.standalone !== 'undefined') return true;
+      return /iPad|iPhone|iPod/.test(ua)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    })();
+    const isStandalone =
+      (typeof window !== 'undefined' &&
+        (window.matchMedia?.('(display-mode: standalone)')?.matches
+          || window.navigator.standalone === true));
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const shareUrl = `${origin}/?share=1&url=`;
+
+    const [copied, setCopied] = useState(false);
+    const copyTemplate = async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopied(true);
+        showToast?.('Copied — paste it into the Shortcut');
+        setTimeout(() => setCopied(false), 1800);
+      } catch {
+        showToast?.('Could not copy — long-press and copy this manually', 'error');
+      }
+    };
+
+    return (
+      <div className="settings-section">
+        <h3 className="filter-section-title">Sharing</h3>
+        <div className="setting-row" style={{borderBottom: 'none', alignItems: 'flex-start'}}>
+          <div style={{minWidth: 0, flex: 1}}>
+            <div className="setting-row-label">Send to My Kitchen from other apps</div>
+            {!isIOS ? (
+              <div className="setting-row-sub" style={{lineHeight: 1.45}}>
+                In Instagram, TikTok, or YouTube, tap <b>Share</b> → look for <b>My Kitchen</b>. The recipe imports automatically.
+                {!isStandalone && (
+                  <div style={{marginTop: 6, color: 'var(--ink-3)'}}>
+                    Make sure the app is installed to your Home Screen for the share target to appear.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="setting-row-sub" style={{lineHeight: 1.5}}>
+                <div style={{marginBottom: 6}}>
+                  iOS doesn't let websites add themselves to the share sheet directly. You can do it in 30 seconds with an iOS Shortcut:
+                </div>
+                <ol style={{margin: '6px 0 8px', paddingLeft: 22, color: 'var(--ink-2)'}}>
+                  <li style={{marginBottom: 4}}>Open the <b>Shortcuts</b> app → <b>+</b> (new shortcut).</li>
+                  <li style={{marginBottom: 4}}>Tap the info icon (ⓘ) → turn on <b>Use with Share Sheet</b>, set Share Sheet Types to <b>URLs</b>.</li>
+                  <li style={{marginBottom: 4}}>Add action <b>"Open URLs"</b>. In the URL field, paste the template below, then tap the field and insert the magic variable <b>Shortcut Input</b> at the end.</li>
+                  <li style={{marginBottom: 4}}>Name it <b>"Send to My Kitchen"</b> and save.</li>
+                </ol>
+                <div style={{
+                  background: 'var(--bg-sunk)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  marginTop: 6,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11.5,
+                  color: 'var(--ink-2)',
+                  wordBreak: 'break-all',
+                  lineHeight: 1.4,
+                }}>
+                  {shareUrl}<span style={{color: 'var(--ink-3)'}}>[Shortcut Input]</span>
+                </div>
+                <button
+                  className="ghost-btn"
+                  onClick={copyTemplate}
+                  style={{width: '100%', marginTop: 8}}
+                >
+                  {copied ? '✓ Copied' : 'Copy URL template'}
+                </button>
+                <div style={{marginTop: 10, color: 'var(--ink-3)', fontSize: 11.5}}>
+                  After saving, open Instagram/TikTok/YouTube → <b>Share</b> → <b>Send to My Kitchen</b>. The app opens with the recipe pre-loaded.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, location, setLocation, devMode, setDevMode, showToast }) {
     const [locBusy, setLocBusy] = useState(false);
     const [locErr, setLocErr] = useState(null);
@@ -4135,24 +4229,8 @@
             </div>
           </div>
 
-          <div className="settings-section">
-            <h3 className="filter-section-title">Sharing</h3>
-            <div className="setting-row" style={{borderBottom: 'none'}}>
-              <div style={{minWidth: 0, flex: 1}}>
-                <div className="setting-row-label">Send to My Kitchen from other apps</div>
-                <div className="setting-row-sub" style={{lineHeight: 1.45}}>
-                  In Instagram, TikTok, or YouTube, tap <b>Share</b> → look for <b>My Kitchen</b> in the share sheet. The recipe imports automatically.
-                  <div style={{marginTop: 6, color: 'var(--ink-3)'}}>
-                    {(typeof window !== 'undefined'
-                      && (window.matchMedia?.('(display-mode: standalone)')?.matches
-                        || window.navigator.standalone === true))
-                      ? <>You're running as an installed app — the share target is active.</>
-                      : <>To enable: <b>Share → Add to Home Screen</b>. iOS only shows the option for installed PWAs.</>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <SharingSection showToast={showToast} />
+
 
           <div className="settings-section">
             <h3 className="filter-section-title">Smart suggestions</h3>

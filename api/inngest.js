@@ -14,6 +14,7 @@ import {
   dbxReadJson,
   dbxWriteJson,
   dbxUpload,
+  dbxSharedLink,
 } from '../lib/dropbox.js';
 import {
   extractFromVideoUrl,
@@ -124,7 +125,38 @@ const extractVideoFn = inngest.createFunction(
           }
         }
 
-        return { ...result.recipe, videoPath };
+        // Archive thumbnail too. Instagram/TikTok thumbnail URLs are signed
+        // CDN links that expire after a few hours — useless for recipes the
+        // user keeps for years. We download once, upload to /thumbnails/,
+        // mint a permanent shared link, and use THAT as recipe.image. Web
+        // recipes typically have stable image URLs and don't need this.
+        let imageUrl = result.recipe.image;
+        if (reel && reel.thumbnail) {
+          try {
+            const r = await fetch(reel.thumbnail, { redirect: 'follow' });
+            if (r.ok) {
+              const buf = Buffer.from(await r.arrayBuffer());
+              if (buf.length > 0 && buf.length < 5_000_000) {
+                const ct = r.headers.get('content-type') || 'image/jpeg';
+                const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+                const thumbPath = `/thumbnails/${jobId}.${ext}`;
+                await dbxUpload(dbxToken, thumbPath, buf);
+                const sharedUrl = await dbxSharedLink(dbxToken, thumbPath);
+                // Convert dropbox.com/s/...?dl=0 → ...?raw=1 so <img src> can
+                // render the bytes inline without a preview-page redirect.
+                if (sharedUrl) {
+                  imageUrl = sharedUrl
+                    .replace(/[?&]dl=0\b/, m => m[0] + 'raw=1').replace(/dl=0/, 'raw=1');
+                  console.log(`[archive] thumbnail at ${thumbPath} → ${imageUrl}`);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('[archive] thumbnail failed:', err.message);
+          }
+        }
+
+        return { ...result.recipe, videoPath, image: imageUrl };
       });
 
       // Persist the recipe under a stable id and update the job.

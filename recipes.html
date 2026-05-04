@@ -557,14 +557,23 @@
       flex-shrink: 0;
     }
 
-    /* Photographic placeholder (no image) */
+    /* Photographic placeholder (always rendered behind any real image) */
     .recipe-img-placeholder {
-      position: relative;
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      inset: 0;
       background:
         repeating-linear-gradient(45deg, oklch(0.90 0 0) 0 3px, oklch(0.82 0 0 / 0.55) 3px 6px),
         linear-gradient(to bottom, transparent, oklch(0.65 0 0 / 0.32));
+    }
+    /* Real image overlays the placeholder. When src fails (404 / expired CDN
+       URL) the overlay is removed and the placeholder shows through. */
+    .recipe-img-overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
     .recipe-img-letter {
       position: absolute; inset: 0;
@@ -1706,7 +1715,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.20';
+  const APP_VERSION       = 'v2026.05.02.21';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -1935,16 +1944,29 @@
   };
 
   // ---------- Recipe placeholder image ----------
+  // Always renders the textured placeholder as the background so the user
+  // sees something instantly. The real image, if present, overlays on top
+  // and silently slides into place when it loads. If the image 404s or its
+  // CDN URL has expired (Instagram thumbnails do this), the overlay is
+  // removed and the placeholder is visible underneath.
   function RecipeMedia({ recipe }) {
     const [failed, setFailed] = useState(false);
-    if (recipe.image && !failed) {
-      return <img src={recipe.image} alt="" loading="lazy" onError={() => setFailed(true)} />;
-    }
     return (
-      <div className="recipe-img-placeholder">
-        <span className="recipe-img-letter">{firstLetter(recipe.title)}</span>
-        <span className="recipe-img-caption">{recipe.title ? recipe.title.split(' ').slice(0,3).join(' ') : 'recipe'}</span>
-      </div>
+      <>
+        <div className="recipe-img-placeholder">
+          <span className="recipe-img-letter">{firstLetter(recipe.title)}</span>
+          <span className="recipe-img-caption">{recipe.title ? recipe.title.split(' ').slice(0,3).join(' ') : 'recipe'}</span>
+        </div>
+        {recipe.image && !failed && (
+          <img
+            src={recipe.image}
+            alt=""
+            loading="lazy"
+            onError={() => setFailed(true)}
+            className="recipe-img-overlay"
+          />
+        )}
+      </>
     );
   }
 
@@ -2704,6 +2726,7 @@
     const [state, setState] = useState('idle');  // idle | loading | playing | error
     const [src, setSrc] = useState(null);
     const [err, setErr] = useState(null);
+    const [posterFailed, setPosterFailed] = useState(false);
 
     const loadAndPlay = async () => {
       if (state === 'loading' || state === 'playing') return;
@@ -2740,6 +2763,9 @@
     }
 
     // Idle / loading / error — show the thumbnail with a play overlay.
+    // The textured "empty" backdrop is always rendered so we never show a
+    // blank box; the poster image overlays on top when it's available, and
+    // gets removed if it fails to load.
     return (
       <button
         type="button"
@@ -2747,9 +2773,15 @@
         onClick={loadAndPlay}
         aria-label="Play video"
       >
-        {poster
-          ? <img src={poster} alt="" className="video-poster-img" />
-          : <div className="video-poster-empty" />}
+        <div className="video-poster-empty" />
+        {poster && !posterFailed && (
+          <img
+            src={poster}
+            alt=""
+            className="video-poster-img"
+            onError={() => setPosterFailed(true)}
+          />
+        )}
         <div className="video-play-overlay">
           {state === 'loading' ? (
             <span className="spinner on-accent" style={{width: 32, height: 32, borderWidth: 3}} />

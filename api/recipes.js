@@ -27,7 +27,11 @@ export default async function handler(req, res) {
       const body = await readJsonBody(req);
       const url = (body && body.url || '').toString().trim();
       if (!url) return json(res, 400, { error: 'missing url' });
-      const recipe = await extractFromUrl(url);
+      // Optional preferred-language code (ISO-639-1). Validated against an
+      // allowlist so the extractor never sees junk; falsy = no translation.
+      const ALLOWED_LANGS = ['en', 'es', 'fr', 'de', 'pt', 'it', 'nl', 'ja', 'ko', 'zh'];
+      const language = body && ALLOWED_LANGS.includes(body.language) ? body.language : '';
+      const recipe = await extractFromUrl(url, { language });
       return json(res, 200, recipe);
     }
 

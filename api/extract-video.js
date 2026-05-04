@@ -46,6 +46,13 @@ export default async function handler(req, res) {
     ? body.analysis
     : 'auto';
 
+  // Optional preferred-language code. The worker uses it to translate the
+  // recipe before saving when the source isn't already in this language.
+  // We accept ISO-639-1 (2-letter) codes from a small allowlist; anything
+  // else is silently ignored so a malformed client can't poison the job.
+  const ALLOWED_LANGS = ['en', 'es', 'fr', 'de', 'pt', 'it', 'nl', 'ja', 'ko', 'zh'];
+  const language = ALLOWED_LANGS.includes(body.language) ? body.language : '';
+
   const frames = Array.isArray(body.frames) ? body.frames.slice(0, 6) : [];
 
   // If the request came in via Bearer auth, tag the job as 'shortcut' so the
@@ -62,6 +69,7 @@ export default async function handler(req, res) {
     progress: fromShortcut ? 'Queued from Shortcut' : 'Queued',
     createdAt: now,
     updatedAt: now,
+    ...(language ? { language } : {}),
     ...(fromShortcut ? { source: 'shortcut' } : {}),
   };
 
@@ -75,7 +83,7 @@ export default async function handler(req, res) {
   try {
     await inngest.send({
       name: 'recipes/video.extract',
-      data: { jobId, url, analysis, frames, dbxToken },
+      data: { jobId, url, analysis, language, frames, dbxToken },
     });
   } catch (e) {
     console.error('[extract-video] inngest.send failed:', e);

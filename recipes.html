@@ -695,6 +695,59 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
+    /* ---------- PULL-TO-REFRESH ---------- */
+    /* Sits above the sticky header (z-index 5) and gets translated down via
+       inline style as the user pulls. Hidden by default until pull begins. */
+    .ptr-indicator {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      pointer-events: none;
+      z-index: 10;
+      transform: translateY(-100%);
+      transition: transform 220ms cubic-bezier(.2,.7,.3,1);
+      will-change: transform;
+    }
+    .ptr-indicator.dragging {
+      transition: none;  /* track the finger 1:1 while dragging */
+    }
+    .ptr-indicator.refreshing {
+      transform: translateY(0);
+    }
+    .ptr-circle {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--bg-elev);
+      border: 1px solid var(--line-strong);
+      box-shadow: 0 2px 8px oklch(0 0 0 / 0.12);
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      margin: 12px 0;
+    }
+    .ptr-arrow {
+      transition: transform 200ms cubic-bezier(.2,.7,.3,1);
+    }
+    .ptr-arrow.flipped {
+      transform: rotate(180deg);
+    }
+    .ptr-spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid color-mix(in oklch, var(--accent) 25%, transparent);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: ptr-spin 700ms linear infinite;
+    }
+    @keyframes ptr-spin { to { transform: rotate(360deg); } }
+
     /* ---------- GRID ---------- */
     /* No more nested scroll container — content flows naturally inside the
        page. Padding-bottom keeps the FAB clear of the last row. */
@@ -1371,6 +1424,25 @@
       box-shadow: 0 1px 2px oklch(0 0 0 / 0.06);
     }
 
+    .lang-select {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+      background: var(--bg-sunk);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 10px;
+      cursor: pointer;
+      flex-shrink: 0;
+      max-width: 140px;
+    }
+    .lang-select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 14%, transparent);
+    }
+
     /* Cooking-active banner */
     .cooking-indicator {
       display: inline-flex;
@@ -2030,8 +2102,8 @@
     get:            (id)            => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`),
     save:           (id, r)         => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'PUT', body: r }),
     remove:         (id)            => apiRequest(`/api/recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    extract:        (url)           => apiRequest('/api/recipes?extract=1', { method: 'POST', body: { url } }),
-    extractVideo:   (url, analysis) => apiRequest('/api/extract-video', { method: 'POST', body: { url, analysis } }),
+    extract:        (url, language) => apiRequest('/api/recipes?extract=1', { method: 'POST', body: { url, language } }),
+    extractVideo:   (url, analysis, language) => apiRequest('/api/extract-video', { method: 'POST', body: { url, analysis, language } }),
     jobStatus:      (jobId)         => apiRequest(`/api/job-status?id=${encodeURIComponent(jobId)}`),
     jobsPending:    ()              => apiRequest('/api/job-status'),
     videoLink:      (id)            => apiRequest(`/api/video-link?id=${encodeURIComponent(id)}`),
@@ -2145,6 +2217,32 @@
     return lang.startsWith('en-us') || lang === 'en' ? 'us' : 'metric';
   }
   function saveUnits(u) { try { localStorage.setItem(UNITS_KEY, u); } catch {} }
+
+  // ---------- Preferred language (for server-side translation on import) ----------
+  // Stored as an ISO-639-1 code. The backend pipeline reads `language` off the
+  // import request and, if the source recipe isn't already in that language,
+  // translates it before saving. Empty string means "don't translate".
+  const LANGUAGE_KEY = 'recipes-language-v1';
+  const SUPPORTED_LANGUAGES = [
+    { code: 'en', label: 'English' },
+    { code: 'es', label: 'Spanish' },
+    { code: 'fr', label: 'French' },
+    { code: 'de', label: 'German' },
+    { code: 'pt', label: 'Portuguese' },
+    { code: 'it', label: 'Italian' },
+    { code: 'nl', label: 'Dutch' },
+    { code: 'ja', label: 'Japanese' },
+    { code: 'ko', label: 'Korean' },
+    { code: 'zh', label: 'Chinese' },
+  ];
+  function defaultLanguage() {
+    const saved = localStorage.getItem(LANGUAGE_KEY);
+    if (saved && SUPPORTED_LANGUAGES.some(l => l.code === saved)) return saved;
+    // Best-effort default from the browser locale, falling back to English.
+    const lang = (navigator.language || 'en').toLowerCase().split('-')[0];
+    return SUPPORTED_LANGUAGES.some(l => l.code === lang) ? lang : 'en';
+  }
+  function saveLanguage(code) { try { localStorage.setItem(LANGUAGE_KEY, code); } catch {} }
 
   // ---------- Location (opt-in, biases ingredient alternatives) ----------
   // Persisted shape: { lat, lon, label, country, ts } or null.
@@ -2416,6 +2514,85 @@
     return [show, node];
   }
 
+  // ---------- Pull-to-refresh hook ----------
+  // Touch-only gesture that fires `onRefresh` when the user pulls down past
+  // PTR_THRESHOLD while already scrolled to the top of the page. Returns
+  // {pullY, refreshing, attach} — `attach` is a ref-callback that wires the
+  // touch listeners onto a container element. Pull amount is dampened to
+  // mimic native iOS rubber-banding.
+  const PTR_THRESHOLD = 70;        // pixels of pull required to trigger refresh
+  const PTR_MAX_PULL = 120;        // visual cap so the indicator doesn't fly off
+  function usePullToRefresh(onRefresh) {
+    const [pullY, setPullY] = useState(0);
+    const [refreshing, setRefreshing] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    const startYRef = useRef(0);
+    const trackingRef = useRef(false);
+
+    const onTouchStart = useCallback((e) => {
+      if (refreshing) return;
+      // Only engage when the page is genuinely at the top — otherwise the
+      // user is just scrolling normally and we shouldn't intercept.
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      if (scrollTop > 0) { trackingRef.current = false; return; }
+      trackingRef.current = true;
+      startYRef.current = e.touches[0].clientY;
+      setPullY(0);
+    }, [refreshing]);
+
+    const onTouchMove = useCallback((e) => {
+      if (!trackingRef.current || refreshing) return;
+      const dy = e.touches[0].clientY - startYRef.current;
+      if (dy <= 0) {
+        // Pulling up or no movement — let normal scroll happen.
+        if (pullY !== 0) setPullY(0);
+        if (dragging) setDragging(false);
+        return;
+      }
+      // Dampening: y' = y * (1 - y/(4*MAX)). Pull feels strong at first then
+      // gradually resists past the threshold, matching native PTR feel.
+      const damped = Math.min(PTR_MAX_PULL, dy * 0.55);
+      setPullY(damped);
+      if (!dragging) setDragging(true);
+    }, [refreshing, pullY, dragging]);
+
+    const onTouchEnd = useCallback(async () => {
+      if (!trackingRef.current) return;
+      trackingRef.current = false;
+      const triggered = pullY >= PTR_THRESHOLD;
+      setDragging(false);
+      if (triggered && !refreshing) {
+        setRefreshing(true);
+        setPullY(PTR_THRESHOLD);  // hold the indicator at threshold while refreshing
+        try { await onRefresh?.(); } catch {}
+        setRefreshing(false);
+        setPullY(0);
+      } else {
+        setPullY(0);
+      }
+    }, [pullY, refreshing, onRefresh]);
+
+    // ref-callback: when the container mounts, wire up listeners; on unmount,
+    // unwire. We use {passive: true} because we never call preventDefault —
+    // scrolling stays perfectly smooth while we observe the gesture.
+    const attach = useCallback((el) => {
+      if (!el) return;
+      el.addEventListener('touchstart', onTouchStart, { passive: true });
+      el.addEventListener('touchmove',  onTouchMove,  { passive: true });
+      el.addEventListener('touchend',   onTouchEnd,   { passive: true });
+      el.addEventListener('touchcancel', onTouchEnd,  { passive: true });
+      // Stash the cleanup on the element so a later attach(null) can run it.
+      el.__ptrCleanup = () => {
+        el.removeEventListener('touchstart', onTouchStart);
+        el.removeEventListener('touchmove',  onTouchMove);
+        el.removeEventListener('touchend',   onTouchEnd);
+        el.removeEventListener('touchcancel', onTouchEnd);
+      };
+    }, [onTouchStart, onTouchMove, onTouchEnd]);
+
+    return { pullY, refreshing, dragging, attach };
+  }
+
   // ---------- Icons ----------
   const Icon = {
     Search:  () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>,
@@ -2573,7 +2750,14 @@
   }
 
   // ---------- Library ----------
-  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onOpenSettings, onLongPress, onSwipeAction }) {
+  function LibraryScreen({ recipes, search, setSearch, filters, setFilters, onOpen, onOpenImport, onOpenFilter, onOpenSettings, onLongPress, onSwipeAction, onRefresh }) {
+
+    // Pull-to-refresh — touchstart at scrollTop=0 + pull down past the
+    // threshold triggers `onRefresh`. Catches in-flight imports queued
+    // elsewhere (iOS Shortcut, share sheet) that may have completed since
+    // page load.
+    const { pullY, refreshing, dragging, attach } = usePullToRefresh(onRefresh);
+    const ptrReady = pullY >= PTR_THRESHOLD;
 
     const allTags = useMemo(() => {
       const set = new Set();
@@ -2629,7 +2813,32 @@
     if (filters.favorite) activeChips.push({ key: 'fav', group: 'favorite', val: true, label: '♥ Favorites' });
 
     return (
-      <div className="screen library-screen">
+      <div className="screen library-screen" ref={attach}>
+        <div
+          className={'ptr-indicator' + (dragging ? ' dragging' : '') + (refreshing ? ' refreshing' : '')}
+          style={!refreshing && pullY > 0 ? { transform: `translateY(${pullY - 62}px)` } : undefined}
+          aria-hidden={pullY === 0 && !refreshing}
+        >
+          <div className="ptr-circle">
+            {refreshing ? (
+              <div className="ptr-spinner" aria-label="Refreshing" />
+            ) : (
+              <svg
+                className={'ptr-arrow' + (ptrReady ? ' flipped' : '')}
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 5v14M5 12l7 7 7-7" />
+              </svg>
+            )}
+          </div>
+        </div>
         <div className="lib-header">
           <div className="brand-row">
             <div className="brand">My Kitchen<span className="dot">.</span></div>
@@ -4346,7 +4555,7 @@
     );
   }
 
-  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, location, setLocation, devMode, setDevMode, showToast }) {
+  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, language, setLanguage, location, setLocation, devMode, setDevMode, showToast }) {
     const [locBusy, setLocBusy] = useState(false);
     const [locErr, setLocErr] = useState(null);
     // Each enable attempt bumps the counter; later results that come back
@@ -4433,6 +4642,28 @@
                 <button className={'units-toggle ' + (units === 'us' ? 'on' : '')} onClick={() => setUnits('us')}>US</button>
                 <button className={'units-toggle ' + (units === 'metric' ? 'on' : '')} onClick={() => setUnits('metric')}>Metric</button>
               </div>
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <h3 className="filter-section-title">Language</h3>
+            <div className="setting-row" style={{borderBottom: 'none'}}>
+              <div style={{minWidth: 0, flex: 1}}>
+                <div className="setting-row-label">Preferred language</div>
+                <div className="setting-row-sub">
+                  Imported recipes get translated into this language when their source isn't already in it.
+                </div>
+              </div>
+              <select
+                className="lang-select"
+                value={language}
+                onChange={e => setLanguage(e.target.value)}
+                aria-label="Preferred language"
+              >
+                {SUPPORTED_LANGUAGES.map(l => (
+                  <option key={l.code} value={l.code}>{l.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -4905,7 +5136,7 @@
   }
 
   // ---------- Import sheet ----------
-  function ImportSheet({ onClose, onImported, onPreviewSave, showToast, recipes, onOpenExisting, initialUrl = '', existingJobId = null }) {
+  function ImportSheet({ onClose, onImported, onPreviewSave, showToast, recipes, onOpenExisting, initialUrl = '', existingJobId = null, language = '' }) {
     // When existingJobId is set we're attaching to a job started elsewhere
     // (e.g. the iOS Shortcut share flow). Skip the URL-paste step and jump
     // straight to the polling/progress UI; the polling useEffect below
@@ -4993,13 +5224,13 @@
 
       try {
         if (isVideoUrl(trimmedUrl)) {
-          const { jobId: id } = await api.extractVideo(trimmedUrl, analysis);
+          const { jobId: id } = await api.extractVideo(trimmedUrl, analysis, language);
           setJobId(id);
           setProgress('Queued');
           setStage('detecting');
         } else {
           setStage('detecting');
-          const parsed = await api.extract(trimmedUrl);
+          const parsed = await api.extract(trimmedUrl, language);
           setPreview({
             id: newId(),
             ...parsed,
@@ -5371,6 +5602,8 @@
     const [longPressed, setLongPressed] = useState(null);
     const [units, setUnitsState] = useState(() => defaultUnits());
     const setUnits = useCallback((u) => { setUnitsState(u); saveUnits(u); }, []);
+    const [language, setLanguageState] = useState(() => defaultLanguage());
+    const setLanguage = useCallback((code) => { setLanguageState(code); saveLanguage(code); }, []);
     const [location, setLocationState] = useState(() => loadLocation());
     const setLocation = useCallback((loc) => { setLocationState(loc); saveLocation(loc); }, []);
     const [devMode, setDevModeState] = useState(() => loadDevMode());
@@ -5666,6 +5899,7 @@
               if (action === 'favorite') toggleFavorite(r.id);
               else if (action === 'delete') deleteRecipe(r.id);
             }}
+            onRefresh={refresh}
           />
         )}
         {tab === 'shopping' && (
@@ -5769,6 +6003,8 @@
             account={account}
             units={units}
             setUnits={setUnits}
+            language={language}
+            setLanguage={setLanguage}
             location={location}
             setLocation={setLocation}
             devMode={devMode}
@@ -5870,6 +6106,7 @@
           <ImportSheet
             initialUrl={importInitialUrl}
             existingJobId={importExistingJobId}
+            language={language}
             onClose={() => { setShowImport(false); setImportInitialUrl(''); setImportExistingJobId(null); }}
             showToast={showToast}
             recipes={recipes}

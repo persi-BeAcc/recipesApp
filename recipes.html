@@ -1986,7 +1986,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.34';
+  const APP_VERSION       = 'v2026.05.02.35';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -4067,19 +4067,22 @@
         (window.matchMedia?.('(display-mode: standalone)')?.matches
           || window.navigator.standalone === true));
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const shareUrl = `${origin}/?share=1&url=`;
+    const endpointUrl = `${origin}/api/share-from-shortcut`;
+    const shareKey = typeof window !== 'undefined' ? (localStorage.getItem(DBX_TOKEN_KEY) || '') : '';
 
-    const [copied, setCopied] = useState(false);
-    const copyTemplate = async () => {
+    const [showKey, setShowKey] = useState(false);
+    const [copied, setCopied] = useState('');
+    const copy = async (text, label) => {
       try {
-        await navigator.clipboard.writeText(shareUrl);
-        setCopied(true);
-        showToast?.('Copied — paste it into the Shortcut');
-        setTimeout(() => setCopied(false), 1800);
+        await navigator.clipboard.writeText(text);
+        setCopied(label);
+        showToast?.('Copied');
+        setTimeout(() => setCopied(''), 1800);
       } catch {
-        showToast?.('Could not copy — long-press and copy this manually', 'error');
+        showToast?.('Could not copy — long-press the value to copy manually', 'error');
       }
     };
+    const maskKey = (k) => k ? `${k.slice(0, 4)}…${k.slice(-4)}` : '';
 
     return (
       <div className="settings-section">
@@ -4099,42 +4102,89 @@
             ) : (
               <div className="setting-row-sub" style={{lineHeight: 1.5}}>
                 <div style={{marginBottom: 6}}>
-                  iOS doesn't let websites add themselves to the share sheet directly. You can do it in 30 seconds with an iOS Shortcut:
+                  iOS won't let HTTPS URLs launch installed PWAs, so a "share opens the app" Shortcut isn't possible. Instead, build a Shortcut that <b>posts the URL directly</b> to a queue endpoint — no browser opens, you just get a "Recipe queued" notification.
                 </div>
-                <ol style={{margin: '6px 0 8px', paddingLeft: 22, color: 'var(--ink-2)'}}>
-                  <li style={{marginBottom: 4}}>Open the <b>Shortcuts</b> app → <b>+</b> (new shortcut).</li>
-                  <li style={{marginBottom: 4}}>Tap the info icon (ⓘ) → turn on <b>Use with Share Sheet</b>, set Share Sheet Types to <b>URLs</b>.</li>
-                  <li style={{marginBottom: 4}}>Add action <b>"Open URLs"</b>. In the URL field, paste the template below, then tap the field and insert the magic variable <b>Shortcut Input</b> at the end.</li>
-                  <li style={{marginBottom: 4}}>Name it <b>"Send to My Kitchen"</b> and save.</li>
+                <p style={{margin: '8px 0 4px', fontWeight: 600, color: 'var(--ink-2)'}}>1. Endpoint URL</p>
+                <CodeRow text={endpointUrl} onCopy={() => copy(endpointUrl, 'url')} copied={copied === 'url'} />
+
+                <p style={{margin: '12px 0 4px', fontWeight: 600, color: 'var(--ink-2)'}}>
+                  2. Your share key{' '}
+                  <button
+                    className="chip"
+                    style={{padding: '2px 8px', fontSize: 11}}
+                    onClick={() => setShowKey(s => !s)}
+                  >{showKey ? 'Hide' : 'Show'}</button>
+                </p>
+                <CodeRow
+                  text={shareKey ? (showKey ? shareKey : maskKey(shareKey)) : '(not connected)'}
+                  onCopy={() => shareKey && copy(shareKey, 'key')}
+                  copied={copied === 'key'}
+                  disabled={!shareKey}
+                />
+                <div style={{fontSize: 11, color: 'var(--ink-3)', marginTop: 4, lineHeight: 1.4}}>
+                  This is your Dropbox app-folder token. Anyone with it can save recipes to your library, but nothing else. Disconnecting Dropbox invalidates it; reconnect and refresh this page to get a new one.
+                </div>
+
+                <p style={{margin: '14px 0 4px', fontWeight: 600, color: 'var(--ink-2)'}}>3. Build the Shortcut</p>
+                <ol style={{margin: '4px 0 0', paddingLeft: 22, color: 'var(--ink-2)'}}>
+                  <li style={{marginBottom: 4}}>Open <b>Shortcuts</b> → <b>+</b> new shortcut. Name it <b>Send to My Kitchen</b>.</li>
+                  <li style={{marginBottom: 4}}>Tap <b>ⓘ</b> → turn on <b>Use with Share Sheet</b>; Share Sheet Types: <b>URLs</b>.</li>
+                  <li style={{marginBottom: 4}}>
+                    Add action <b>"Get Contents of URL"</b>. Configure it:
+                    <ul style={{margin: '4px 0 4px', paddingLeft: 18}}>
+                      <li><b>URL</b>: paste the endpoint URL above.</li>
+                      <li><b>Method</b>: POST.</li>
+                      <li><b>Headers</b>: add one — key <code>Authorization</code>, value <code>Bearer </code><i>(then paste your share key, with one space after Bearer)</i>.</li>
+                      <li><b>Request Body</b>: JSON. Add a field — key <code>url</code>, type <b>Text</b>, value the magic variable <b>Shortcut Input</b>.</li>
+                    </ul>
+                  </li>
+                  <li style={{marginBottom: 4}}>Add action <b>"Show Notification"</b>. Title: <code>My Kitchen</code>. Body: <code>Recipe queued — opening the app to view it.</code></li>
+                  <li style={{marginBottom: 4}}>Save.</li>
                 </ol>
-                <div style={{
-                  background: 'var(--bg-sunk)',
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  padding: '8px 10px',
-                  marginTop: 6,
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11.5,
-                  color: 'var(--ink-2)',
-                  wordBreak: 'break-all',
-                  lineHeight: 1.4,
-                }}>
-                  {shareUrl}<span style={{color: 'var(--ink-3)'}}>[Shortcut Input]</span>
-                </div>
-                <button
-                  className="ghost-btn"
-                  onClick={copyTemplate}
-                  style={{width: '100%', marginTop: 8}}
-                >
-                  {copied ? '✓ Copied' : 'Copy URL template'}
-                </button>
-                <div style={{marginTop: 10, color: 'var(--ink-3)', fontSize: 11.5}}>
-                  After saving, open Instagram/TikTok/YouTube → <b>Share</b> → <b>Send to My Kitchen</b>. The app opens with the recipe pre-loaded.
+                <div style={{marginTop: 10, color: 'var(--ink-3)', fontSize: 11.5, lineHeight: 1.4}}>
+                  After saving: in Instagram/TikTok/YouTube → <b>Share</b> → <b>Send to My Kitchen</b>. You'll get a notification immediately. Open the PWA from your Home Screen to see the recipe — it lands in your library within ~30 seconds.
                 </div>
               </div>
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Compact monospaced row with a copy button — used for the share endpoint
+  // and access key in iOS Shortcut setup.
+  function CodeRow({ text, onCopy, copied, disabled }) {
+    return (
+      <div style={{display: 'flex', alignItems: 'stretch', gap: 6, marginTop: 4}}>
+        <div style={{
+          flex: 1,
+          minWidth: 0,
+          background: 'var(--bg-sunk)',
+          border: '1px solid var(--line)',
+          borderRadius: 8,
+          padding: '8px 10px',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11.5,
+          color: disabled ? 'var(--ink-3)' : 'var(--ink-2)',
+          wordBreak: 'break-all',
+          lineHeight: 1.4,
+        }}>
+          {text}
+        </div>
+        <button
+          className="ghost-btn"
+          onClick={onCopy}
+          disabled={disabled}
+          style={{
+            padding: '0 12px',
+            fontSize: 12,
+            opacity: disabled ? 0.4 : 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {copied ? '✓' : 'Copy'}
+        </button>
       </div>
     );
   }

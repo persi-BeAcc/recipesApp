@@ -1595,8 +1595,18 @@
       height: 4px;
       background: var(--line-strong);
       border-radius: 4px;
-      margin: 0 auto 16px;
+      margin: 0 auto;
     }
+    /* Bigger touch target around the visible bar so the drag-to-dismiss
+       gesture is easy to grab. The bar itself stays small visually. */
+    .sheet-grab-tap {
+      padding: 10px 0 14px;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .sheet-grab-tap:active { cursor: grabbing; }
     .sheet-title {
       font-family: var(--font-display);
       font-size: 19px;
@@ -1969,7 +1979,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.26';
+  const APP_VERSION       = 'v2026.05.02.27';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -3420,6 +3430,74 @@
     );
   }
 
+  // ---------- Reusable sheet grab handle (drag-down to dismiss) ----------
+  // Renders the visible 32×4 bar inside a larger invisible touch target.
+  // On pointer-down, walks up to its parent .sheet element and translates it
+  // down by the drag distance; if released past ~90px the sheet animates off
+  // the bottom and onClose() is called. Released earlier → springs back.
+  function SheetGrab({ onClose }) {
+    const wrapRef = useRef(null);
+    const sheetRef = useRef(null);
+    const dragRef = useRef(null);
+
+    const setSheetTransform = (y, animate) => {
+      const el = sheetRef.current;
+      if (!el) return;
+      el.style.transition = animate ? 'transform 220ms cubic-bezier(.2,.7,.3,1)' : 'none';
+      el.style.transform = y > 0 ? `translateY(${y}px)` : '';
+    };
+
+    const onPointerDown = (e) => {
+      // Find the parent .sheet at gesture start (don't cache earlier — the
+      // grab can be conditionally mounted before the parent finishes laying out).
+      sheetRef.current = wrapRef.current ? wrapRef.current.closest('.sheet') : null;
+      dragRef.current = { y0: e.clientY, dy: 0 };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+    };
+    const onPointerMove = (e) => {
+      if (!dragRef.current) return;
+      const dy = Math.max(0, e.clientY - dragRef.current.y0);
+      dragRef.current.dy = dy;
+      setSheetTransform(dy, false);
+    };
+    const onPointerUp = () => {
+      if (!dragRef.current) return;
+      const dy = dragRef.current.dy;
+      dragRef.current = null;
+      if (dy > 90) {
+        // Animate fully off-screen, then close.
+        const el = sheetRef.current;
+        if (el) {
+          el.style.transition = 'transform 200ms ease-in';
+          el.style.transform = 'translateY(100%)';
+        }
+        setTimeout(() => onClose?.(), 180);
+      } else {
+        setSheetTransform(0, true);
+      }
+    };
+    const onPointerCancel = () => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      setSheetTransform(0, true);
+    };
+
+    return (
+      <div
+        ref={wrapRef}
+        className="sheet-grab-tap"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        aria-label="Drag down to close"
+        role="button"
+      >
+        <div className="sheet-grab" />
+      </div>
+    );
+  }
+
   // ---------- Alternatives sheet ----------
   function AlternativesSheet({ item, recipe, onClose, onSwap, onRemove }) {
     const [alts, setAlts] = useState(null);
@@ -3452,7 +3530,7 @@
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
-          <div className="sheet-grab" />
+          <SheetGrab onClose={onClose} />
           <h2 className="sheet-title">Can't find {item.name}?</h2>
           <p className="sheet-sub">
             {recipe
@@ -3580,7 +3658,7 @@
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
-          <div className="sheet-grab" />
+          <SheetGrab onClose={onClose} />
           <h2 className="sheet-title">Add to shopping list</h2>
           <p className="sheet-sub">Type, snap a photo, or pull from your recipes — we dedupe automatically.</p>
 
@@ -3669,7 +3747,7 @@
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
-          <div className="sheet-grab" />
+          <SheetGrab onClose={onClose} />
           <h2 className="sheet-title">Settings</h2>
           <p className="sheet-sub">Customize your kitchen.</p>
 
@@ -3779,7 +3857,7 @@
       return (
         <div className="sheet-overlay" onClick={onClose}>
           <div className="sheet" onClick={e => e.stopPropagation()}>
-            <div className="sheet-grab" />
+            <SheetGrab onClose={onClose} />
             <h2 className="sheet-title">Your kitchen stats</h2>
             <p className="sheet-sub">Save a recipe first and stats will show up here.</p>
           </div>
@@ -3790,7 +3868,7 @@
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
-          <div className="sheet-grab" />
+          <SheetGrab onClose={onClose} />
           <h2 className="sheet-title">Your kitchen stats</h2>
           <p className="sheet-sub">A quick look at what's working in your library.</p>
 
@@ -3939,7 +4017,7 @@
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
-          <div className="sheet-grab" />
+          <SheetGrab onClose={onClose} />
           <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 12}}>
             <h2 className="sheet-title" style={{margin: 0}}>Filters</h2>
             <button className="btn-text" onClick={reset} style={{padding: 0}}>Reset</button>
@@ -4140,7 +4218,7 @@
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
-          <div className="sheet-grab" />
+          <SheetGrab onClose={onClose} />
 
           {stage === 'paste' && (
             <>

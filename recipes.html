@@ -1979,7 +1979,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.27';
+  const APP_VERSION       = 'v2026.05.02.28';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -2112,6 +2112,64 @@
     return lang.startsWith('en-us') || lang === 'en' ? 'us' : 'metric';
   }
   function saveUnits(u) { try { localStorage.setItem(UNITS_KEY, u); } catch {} }
+
+  // ---------- Location (opt-in, biases ingredient alternatives) ----------
+  // Persisted shape: { lat, lon, label, country, ts } or null.
+  // We never call navigator.geolocation automatically — only when the user
+  // explicitly flips the toggle in Settings. Once granted, we reverse-geocode
+  // to a coarse "City, Country" label (free no-auth endpoint) and pass that
+  // along with /api/shopping/alternatives requests so Claude can prefer subs
+  // commonly stocked in that region.
+  const LOCATION_KEY = 'recipes-location-v1';
+  function loadLocation() {
+    try {
+      const raw = localStorage.getItem(LOCATION_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && (parsed.label || parsed.country)) return parsed;
+    } catch {}
+    return null;
+  }
+  function saveLocation(loc) {
+    try {
+      if (loc) localStorage.setItem(LOCATION_KEY, JSON.stringify(loc));
+      else localStorage.removeItem(LOCATION_KEY);
+    } catch {}
+  }
+  // Reverse-geocode lat/lon → "City, Country". BigDataCloud's client endpoint
+  // is free with no key. If it fails, we still store the coords as the label.
+  async function reverseGeocode(lat, lon) {
+    try {
+      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('reverse geocode failed');
+      const j = await r.json();
+      const city = j.city || j.locality || j.principalitySubdivision || '';
+      const country = j.countryName || '';
+      const label = [city, country].filter(Boolean).join(', ');
+      return { label: label || `${lat.toFixed(2)}, ${lon.toFixed(2)}`, country };
+    } catch {
+      return { label: `${lat.toFixed(2)}, ${lon.toFixed(2)}`, country: '' };
+    }
+  }
+  function requestGeolocationOnce() {
+    return new Promise((resolve, reject) => {
+      if (!('geolocation' in navigator)) {
+        reject(new Error('Geolocation is not available on this device.'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        (err) => {
+          // Friendlier error than the raw browser message.
+          if (err && err.code === 1) reject(new Error('Location permission denied. You can enable it in your browser settings.'));
+          else if (err && err.code === 3) reject(new Error('Location request timed out — please try again.'));
+          else reject(new Error((err && err.message) || 'Could not get location.'));
+        },
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60 * 60 * 1000 }
+      );
+    });
+  }
 
   function parseQty(s) {
     s = String(s).trim();
@@ -3499,7 +3557,7 @@
   }
 
   // ---------- Alternatives sheet ----------
-  function AlternativesSheet({ item, recipe, onClose, onSwap, onRemove }) {
+  function AlternativesSheet({ item, recipe, location, onClose, onSwap, onRemove }) {
     const [alts, setAlts] = useState(null);
     const [err, setErr] = useState(null);
 
@@ -3518,6 +3576,14 @@
               ingredientLines: (recipe.ingredients || []).filter(s => !/^—.*—$/.test(s)),
             };
           }
+          // Only forward a tight subset — never raw lat/lon — so the prompt
+          // stays focused on what's stocked at neighborhood stores there.
+          if (location && (location.label || location.country)) {
+            body.location = {
+              label: location.label || '',
+              country: location.country || '',
+            };
+          }
           const r = await api.shoppingAlternatives(body);
           if (!cancelled) setAlts(r.alternatives || []);
         } catch (e) {
@@ -3525,7 +3591,7 @@
         }
       })();
       return () => { cancelled = true; };
-    }, [item, recipe]);
+    }, [item, recipe, location]);
 
     return (
       <div className="sheet-overlay" onClick={onClose}>
@@ -3743,7 +3809,28 @@
   // ---------- Settings sheet ----------
   // Centralized place for connection status, dark mode, and stats. Replaces
   // the previous header-icon clutter with a single ⚙ button.
-  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits }) {
+  function SettingsSheet({ onClose, darkMode, setDarkMode, onOpenStats, onSignOut, recipesCount, account, units, setUnits, location, setLocation, showToast }) {
+    const [locBusy, setLocBusy] = useState(false);
+    const [locErr, setLocErr] = useState(null);
+
+    const enableLocation = async () => {
+      setLocBusy(true); setLocErr(null);
+      try {
+        const { lat, lon } = await requestGeolocationOnce();
+        const { label, country } = await reverseGeocode(lat, lon);
+        setLocation({ lat, lon, label, country, ts: Date.now() });
+        showToast?.(`Location set: ${label}`, 'success');
+      } catch (e) {
+        setLocErr(e.message || 'Could not get location');
+      } finally {
+        setLocBusy(false);
+      }
+    };
+    const disableLocation = () => {
+      setLocation(null);
+      setLocErr(null);
+    };
+
     return (
       <div className="sheet-overlay" onClick={onClose}>
         <div className="sheet" onClick={e => e.stopPropagation()}>
@@ -3779,6 +3866,32 @@
                 <button className={'units-toggle ' + (units === 'us' ? 'on' : '')} onClick={() => setUnits('us')}>US</button>
                 <button className={'units-toggle ' + (units === 'metric' ? 'on' : '')} onClick={() => setUnits('metric')}>Metric</button>
               </div>
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <h3 className="filter-section-title">Smart suggestions</h3>
+            <div className="setting-row" style={{borderBottom: 'none'}}>
+              <div style={{minWidth: 0, flex: 1}}>
+                <div className="setting-row-label">Use my location for alternatives</div>
+                <div className="setting-row-sub">
+                  {location
+                    ? <>Suggesting subs likely stocked near <b>{location.label}</b></>
+                    : <>Off — tap to allow. Used only when looking up ingredient subs.</>}
+                </div>
+                {locErr && (
+                  <div style={{fontSize: 12, color: 'oklch(0.55 0.18 25)', marginTop: 6}}>{locErr}</div>
+                )}
+              </div>
+              <div
+                className={'toggle ' + (location ? 'on' : '')}
+                onClick={() => { if (locBusy) return; location ? disableLocation() : enableLocation(); }}
+                role="button"
+                aria-label="Toggle location"
+                aria-busy={locBusy}
+                style={locBusy ? { opacity: 0.5 } : undefined}
+                tabIndex={0}
+              />
             </div>
           </div>
 
@@ -4534,6 +4647,8 @@
     const [longPressed, setLongPressed] = useState(null);
     const [units, setUnitsState] = useState(() => defaultUnits());
     const setUnits = useCallback((u) => { setUnitsState(u); saveUnits(u); }, []);
+    const [location, setLocationState] = useState(() => loadLocation());
+    const setLocation = useCallback((loc) => { setLocationState(loc); saveLocation(loc); }, []);
     const [showToast, toastNode] = useToast();
 
     const refresh = useCallback(async () => {
@@ -4843,6 +4958,7 @@
           <AlternativesSheet
             item={altsTarget.item}
             recipe={altsTarget.recipe}
+            location={location}
             onClose={() => setAltsTarget(null)}
             onSwap={swapShopItem}
             onRemove={(it) => { removeShopItem(it); setAltsTarget(null); }}
@@ -4866,6 +4982,9 @@
             account={account}
             units={units}
             setUnits={setUnits}
+            location={location}
+            setLocation={setLocation}
+            showToast={showToast}
             onSignOut={async () => {
               if (!confirm('Disconnect Dropbox? Your recipes stay safe — you can reconnect anytime.')) return;
               try { await api.disconnect(); } catch {}

@@ -36,6 +36,16 @@ export default async function handler(req, res) {
   const itemNote = body.note ? ` (${String(body.note).trim()})` : '';
   const recipe = body.recipe || null;
 
+  // Optional location bias. We only ever receive a coarse label like "Lisbon,
+  // Portugal" — never raw lat/lon — and pass it on to Claude so suggestions
+  // skew toward what's stocked at neighborhood stores in that region.
+  const locationLabel = body.location && typeof body.location === 'object'
+    ? String(body.location.label || body.location.country || '').trim().slice(0, 120)
+    : '';
+  const locationBlock = locationLabel
+    ? `\n\nSHOPPER LOCATION: ${locationLabel}\nWhen ranking and choosing alternatives, prefer items commonly stocked at neighborhood grocery stores in this region. If a culturally-local substitute is a closer functional match (e.g. crème fraîche for sour cream in France, queso fresco for ricotta in Mexico, kefir for buttermilk in much of Eastern Europe), favor it. Avoid suggesting items that would be hard to find there.`
+    : '';
+
   let prompt;
   if (recipe && recipe.title) {
     const ingredientLines = Array.isArray(recipe.ingredientLines) ? recipe.ingredientLines.slice(0, 30) : [];
@@ -86,20 +96,22 @@ Rules:
 - "name": short, store-friendly (1-3 words, lowercase).
 - "why": ONE sentence naming the SPECIFIC functional match (texture/prep/role) in THIS recipe — not just "similar flavor". Include rough conversion ratio when helpful (e.g. "1/4 tsp powder per clove").
 - Same ingredient in a different FORM (powder, jarred, frozen, dried, paste) is allowed and often the right answer. Same ingredient under a SYNONYM (EVOO for olive oil, garlic salt for garlic) is NOT — skip those.
-- Prefer alternatives commonly available at any grocery store.`;
+- Prefer alternatives commonly available at any grocery store.${locationBlock}`;
   } else {
     prompt = `A user is shopping and can't find an ingredient. Suggest substitutes that genuinely work as a stand-in.
 
 ITEM: "${itemName}${itemNote}"
 
-Without recipe context, focus on the most common cooking uses of this ingredient and suggest substitutes that cover those uses. Reject suggestions that only share a vague category — e.g. "ginger" for "garlic" is not an answer just because both are aromatics.
+Without recipe context, focus on the most common cooking uses of this ingredient and suggest substitutes that cover those uses.
+
+Some ingredients are flavor-distinctive and effectively irreplaceable (garlic, ginger, lemon/lime, vanilla, cilantro, basil, mint, fish sauce, miso, soy sauce, parmesan, feta, coconut milk, tahini). For these, prefer the SAME ingredient in a different form (powder, jarred, frozen, dried, paste) over a different fresh ingredient. Reject suggestions that only share a vague category — e.g. shallot/onion for garlic is not an answer just because both are alliums; ginger for garlic is not an answer just because both are aromatics.
 
 Return ONLY a JSON object with no prose, no markdown fences:
 
 {
   "alternatives": [
-    { "name": "shallot",   "confidence": "high",   "why": "Roasts and sautés like garlic for similar mellow allium flavor" },
-    { "name": "leek (white part)", "confidence": "medium", "why": "Milder and sweeter — works in soups and sautés, weaker in raw dressings" }
+    { "name": "garlic powder",        "confidence": "high",   "why": "Use ~1/4 tsp per clove. Loses fresh punch, keeps savory backbone" },
+    { "name": "jarred minced garlic", "confidence": "high",   "why": "Same flavor profile as fresh, slightly less sharp; sub 1:1 by volume" }
   ]
 }
 
@@ -109,8 +121,8 @@ Rules:
 - "confidence": "high" (works in most uses) or "medium" (works in some uses with a note). Do NOT include "low"-confidence guesses.
 - "name": short (1-3 words, lowercase).
 - "why": ONE sentence on the SPECIFIC functional match and any trade-off.
-- Don't suggest the same item with a different name (e.g. "EVOO" for "olive oil"). Be substantive.
-- Prefer items commonly available at any grocery store.`;
+- Same ingredient in a different FORM (powder, jarred, frozen, dried, paste) is allowed and often the right answer for distinctive ingredients. Same ingredient under a SYNONYM (EVOO for olive oil, garlic salt for garlic) is NOT — skip those.
+- Prefer items commonly available at any grocery store.${locationBlock}`;
   }
 
   try {

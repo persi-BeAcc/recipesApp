@@ -1986,7 +1986,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.32';
+  const APP_VERSION       = 'v2026.05.02.33';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -4136,6 +4136,25 @@
           </div>
 
           <div className="settings-section">
+            <h3 className="filter-section-title">Sharing</h3>
+            <div className="setting-row" style={{borderBottom: 'none'}}>
+              <div style={{minWidth: 0, flex: 1}}>
+                <div className="setting-row-label">Send to My Kitchen from other apps</div>
+                <div className="setting-row-sub" style={{lineHeight: 1.45}}>
+                  In Instagram, TikTok, or YouTube, tap <b>Share</b> → look for <b>My Kitchen</b> in the share sheet. The recipe imports automatically.
+                  <div style={{marginTop: 6, color: 'var(--ink-3)'}}>
+                    {(typeof window !== 'undefined'
+                      && (window.matchMedia?.('(display-mode: standalone)')?.matches
+                        || window.navigator.standalone === true))
+                      ? <>You're running as an installed app — the share target is active.</>
+                      : <>To enable: <b>Share → Add to Home Screen</b>. iOS only shows the option for installed PWAs.</>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-section">
             <h3 className="filter-section-title">Smart suggestions</h3>
             <div className="setting-row" style={{borderBottom: 'none'}}>
               <div style={{minWidth: 0, flex: 1}}>
@@ -4601,9 +4620,9 @@
   }
 
   // ---------- Import sheet ----------
-  function ImportSheet({ onClose, onImported, onPreviewSave, showToast, recipes, onOpenExisting }) {
+  function ImportSheet({ onClose, onImported, onPreviewSave, showToast, recipes, onOpenExisting, initialUrl = '' }) {
     const [stage, setStage] = useState('paste');  // paste | detecting | preview | duplicate | error
-    const [url, setUrl] = useState('');
+    const [url, setUrl] = useState(initialUrl);
     const [analysis, setAnalysis] = useState('auto');
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState(null);
@@ -5022,6 +5041,14 @@
     const [filters, setFilters] = useState(emptyFilters());
     const [openId, setOpenId] = useState(null);
     const [showImport, setShowImport] = useState(false);
+    // When the OS share sheet hands us a URL via the Web Share Target manifest
+    // entry (?share=1&url=… or text=…), we open ImportSheet pre-filled.
+    const [importInitialUrl, setImportInitialUrl] = useState('');
+    // Clear pre-filled URL whenever ImportSheet closes (any path) so the next
+    // manual "+ Import" tap doesn't show the previously-shared URL.
+    useEffect(() => {
+      if (!showImport && importInitialUrl) setImportInitialUrl('');
+    }, [showImport, importInitialUrl]);
     const [showFilter, setShowFilter] = useState(false);
     const [showStats, setShowStats] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
@@ -5186,6 +5213,38 @@
         if (payload) setSharePayload(payload);
         setShareLoading(false);
       })();
+    }, []);
+
+    // ---- Web Share Target: launched from the OS share sheet ----
+    // The manifest declares `share_target.action = "/?share=1"` with GET params
+    // {title, text, url}. iOS/Android push the shared URL into either `url`
+    // (Android, modern iOS) or `text` (older iOS, some apps that share as
+    // plain text). We extract whichever has a usable http(s) URL, open the
+    // ImportSheet pre-filled, and clean the query so a refresh won't replay.
+    useEffect(() => {
+      const params = new URLSearchParams(window.location.search || '');
+      if (!params.has('share')) return;
+      const candidates = [params.get('url'), params.get('text'), params.get('title')];
+      let shared = '';
+      for (const c of candidates) {
+        if (!c) continue;
+        // The full string itself, OR the first http(s) URL inside it.
+        const direct = c.trim();
+        if (/^https?:\/\//i.test(direct)) { shared = direct; break; }
+        const m = direct.match(/https?:\/\/\S+/i);
+        if (m) { shared = m[0]; break; }
+      }
+      // Clean the address bar regardless — leaving ?share=1 in the URL would
+      // re-trigger this on the next manual refresh.
+      try {
+        const url = new URL(window.location.href);
+        url.search = '';
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+      if (shared) {
+        setImportInitialUrl(shared);
+        setShowImport(true);
+      }
     }, []);
 
     const openRecipe = (r) => setOpenId(r.id);
@@ -5481,7 +5540,8 @@
 
         {showImport && (
           <ImportSheet
-            onClose={() => setShowImport(false)}
+            initialUrl={importInitialUrl}
+            onClose={() => { setShowImport(false); setImportInitialUrl(''); }}
             showToast={showToast}
             recipes={recipes}
             onOpenExisting={(existing) => {

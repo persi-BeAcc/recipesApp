@@ -9,6 +9,16 @@
   "background_color": "#f6f3e8",
   "theme_color": "#cfd6b3",
   "categories": ["food", "lifestyle", "utilities"],
+  "share_target": {
+    "action": "/?share=1",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
   "icons": [
     {
       "src": "/icon-192.png",

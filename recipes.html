@@ -1969,7 +1969,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.25';
+  const APP_VERSION       = 'v2026.05.02.26';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -3469,25 +3469,46 @@
 
           {alts && alts.length > 0 && (
             <ul style={{listStyle: 'none', padding: 0, margin: '0 0 16px'}}>
-              {alts.map((a, i) => (
-                <li key={i} style={{display: 'flex', gap: 10, alignItems: 'center', padding: '12px 4px', borderBottom: '1px solid var(--line)'}}>
-                  <div style={{flex: 1, minWidth: 0}}>
-                    <div style={{fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 2}}>{a.name}</div>
-                    <div style={{fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.4}}>{a.why}</div>
-                  </div>
-                  <button
-                    className="chip"
-                    style={{flexShrink: 0}}
-                    onClick={() => onSwap(item, a.name)}
-                  >
-                    Use this
-                  </button>
-                </li>
-              ))}
+              {alts.map((a, i) => {
+                const conf = String(a.confidence || '').toLowerCase();
+                const isMedium = conf === 'medium';
+                return (
+                  <li key={i} style={{display: 'flex', gap: 10, alignItems: 'center', padding: '12px 4px', borderBottom: '1px solid var(--line)'}}>
+                    <div style={{flex: 1, minWidth: 0}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2}}>
+                        <span style={{fontSize: 14, fontWeight: 600, color: 'var(--ink)'}}>{a.name}</span>
+                        {isMedium && (
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            color: 'var(--ink-3)',
+                            background: 'var(--bg-sunk)',
+                            border: '1px solid var(--line)',
+                            borderRadius: 999,
+                            padding: '2px 7px',
+                          }}>trade-off</span>
+                        )}
+                      </div>
+                      <div style={{fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.4}}>{a.why}</div>
+                    </div>
+                    <button
+                      className="chip"
+                      style={{flexShrink: 0}}
+                      onClick={() => onSwap(item, a.name)}
+                    >
+                      Use this
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
           {alts && alts.length === 0 && !err && (
-            <p style={{color: 'var(--ink-3)', textAlign: 'center', padding: 14}}>No alternatives found.</p>
+            <p style={{color: 'var(--ink-3)', textAlign: 'center', padding: 14}}>
+              No close substitute came to mind for this recipe — you may need to skip it or change the dish.
+            </p>
           )}
 
           <div className="sheet-actions">

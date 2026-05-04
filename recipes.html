@@ -1937,7 +1937,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.22';
+  const APP_VERSION       = 'v2026.05.02.23';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -3215,22 +3215,18 @@
   };
 
   function ShoppingScreen({ items, onToggle, onClearChecked, onClearAll, onOpenAdd, onOpenSettings, recipes }) {
-    // Group by category — pending items above, checked items below.
+    // Group by category — checked items stay in place (strikethrough only),
+    // they don't move to a separate section. Order within a category is the
+    // order items were added.
     const grouped = useMemo(() => {
-      const pending = {};
-      const checked = [];
+      const byCat = {};
       for (const it of items) {
-        if (it.checked) {
-          checked.push(it);
-        } else {
-          const cat = it.category || 'other';
-          (pending[cat] ||= []).push(it);
-        }
+        const cat = it.category || 'other';
+        (byCat[cat] ||= []).push(it);
       }
-      const ordered = SHOP_CATEGORY_ORDER
-        .filter(c => pending[c] && pending[c].length)
-        .map(c => [c, pending[c]]);
-      return { ordered, checked };
+      return SHOP_CATEGORY_ORDER
+        .filter(c => byCat[c] && byCat[c].length)
+        .map(c => [c, byCat[c]]);
     }, [items]);
 
     const totalPending = items.filter(it => !it.checked).length;
@@ -3282,7 +3278,7 @@
                 </button>
               </div>
 
-              {grouped.ordered.map(([cat, list]) => (
+              {grouped.map(([cat, list]) => (
                 <div key={cat}>
                   <div className="shop-category-heading">{SHOP_CATEGORY_LABEL[cat] || cat}</div>
                   <ul className="shop-list">
@@ -3292,17 +3288,6 @@
                   </ul>
                 </div>
               ))}
-
-              {grouped.checked.length > 0 && (
-                <div>
-                  <div className="shop-category-heading" style={{color: 'var(--ink-3)'}}>Got it</div>
-                  <ul className="shop-list">
-                    {grouped.checked.map(it => (
-                      <ShoppingRow key={it.id} item={it} onToggle={onToggle} recipes={recipes} />
-                    ))}
-                  </ul>
-                </div>
-              )}
 
               <div style={{height: 80}} />
             </>

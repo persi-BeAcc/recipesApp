@@ -1986,7 +1986,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.37';
+  const APP_VERSION       = 'v2026.05.02.38';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -2033,7 +2033,7 @@
     extract:        (url)           => apiRequest('/api/recipes?extract=1', { method: 'POST', body: { url } }),
     extractVideo:   (url, analysis) => apiRequest('/api/extract-video', { method: 'POST', body: { url, analysis } }),
     jobStatus:      (jobId)         => apiRequest(`/api/job-status?id=${encodeURIComponent(jobId)}`),
-    jobsPending:    ()              => apiRequest('/api/jobs-pending'),
+    jobsPending:    ()              => apiRequest('/api/job-status'),
     videoLink:      (id)            => apiRequest(`/api/video-link?id=${encodeURIComponent(id)}`),
     whoami:         ()              => apiRequest('/api/whoami'),
     disconnect:     ()              => apiRequest('/api/whoami?action=disconnect', { method: 'POST', body: {} }),
@@ -4074,7 +4074,7 @@
         (window.matchMedia?.('(display-mode: standalone)')?.matches
           || window.navigator.standalone === true));
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const endpointUrl = `${origin}/api/share-from-shortcut`;
+    const endpointUrl = `${origin}/api/extract-video`;
     const shareKey = typeof window !== 'undefined' ? (localStorage.getItem(DBX_TOKEN_KEY) || '') : '';
 
     const [showKey, setShowKey] = useState(false);

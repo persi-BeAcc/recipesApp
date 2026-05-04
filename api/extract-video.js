@@ -3,9 +3,10 @@
 // Kicks off an async video extraction job. Returns immediately with a jobId.
 // The actual work happens in the Inngest worker (api/inngest.js).
 //
-// Auth: per-user. Caller's `x-dropbox-token` is forwarded into the Inngest
-// event payload so the worker can write recipes + archive videos into the
-// caller's own Dropbox app folder.
+// Two ways to authenticate (Vercel Hobby 12-function cap forced consolidation):
+//   • x-dropbox-token: <refresh-token>   ← the PWA does this normally
+//   • Authorization: Bearer <token>      ← the iOS Shortcut share-flow does this
+// Either is forwarded into the Inngest event payload as `dbxToken`.
 
 import { Inngest } from 'inngest';
 import { dbxWriteJson } from '../lib/dropbox.js';
@@ -18,7 +19,14 @@ const inngest = new Inngest({
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
+  // Pick up the Dropbox token from either header. PWA → x-dropbox-token,
+  // iOS Shortcut → Authorization: Bearer <token>.
+  let dbxToken = req.headers['x-dropbox-token'] || '';
+  if (!dbxToken) {
+    const auth = req.headers['authorization'] || '';
+    const m = auth.match(/^Bearer\s+(\S.*)$/i);
+    if (m) dbxToken = m[1].trim();
+  }
   if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
 
   if (req.method !== 'POST') {
@@ -40,6 +48,10 @@ export default async function handler(req, res) {
 
   const frames = Array.isArray(body.frames) ? body.frames.slice(0, 6) : [];
 
+  // If the request came in via Bearer auth, tag the job as 'shortcut' so the
+  // PWA's pending-jobs surface knows to label it as queued from outside.
+  const fromShortcut = !req.headers['x-dropbox-token'] && /^bearer\s+/i.test(req.headers['authorization'] || '');
+
   const jobId  = newId();
   const now    = new Date().toISOString();
   const job = {
@@ -47,9 +59,10 @@ export default async function handler(req, res) {
     status: 'pending',
     url,
     analysis,
-    progress: 'Queued',
+    progress: fromShortcut ? 'Queued from Shortcut' : 'Queued',
     createdAt: now,
     updatedAt: now,
+    ...(fromShortcut ? { source: 'shortcut' } : {}),
   };
 
   try {
@@ -77,7 +90,8 @@ export default async function handler(req, res) {
     return json(res, 500, { error: 'could not dispatch job', jobId });
   }
 
-  return json(res, 202, { jobId });
+  // 202 Accepted — both flows expect this.
+  return json(res, 202, { jobId, ok: true });
 }
 
 function json(res, status, body) {

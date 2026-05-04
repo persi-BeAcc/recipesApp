@@ -1986,7 +1986,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.02.35';
+  const APP_VERSION       = 'v2026.05.02.37';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
@@ -2033,6 +2033,7 @@
     extract:        (url)           => apiRequest('/api/recipes?extract=1', { method: 'POST', body: { url } }),
     extractVideo:   (url, analysis) => apiRequest('/api/extract-video', { method: 'POST', body: { url, analysis } }),
     jobStatus:      (jobId)         => apiRequest(`/api/job-status?id=${encodeURIComponent(jobId)}`),
+    jobsPending:    ()              => apiRequest('/api/jobs-pending'),
     videoLink:      (id)            => apiRequest(`/api/video-link?id=${encodeURIComponent(id)}`),
     whoami:         ()              => apiRequest('/api/whoami'),
     disconnect:     ()              => apiRequest('/api/whoami?action=disconnect', { method: 'POST', body: {} }),
@@ -4053,6 +4054,12 @@
   // the same thing: receives a URL from the share sheet, opens our app at
   //   https://<origin>/?share=1&url=<encoded URL>
   // The app's existing share-target boot effect handles the rest.
+  // localStorage key for a saved iCloud Shortcut link (one-tap reinstall).
+  // Default points at the canonical Shortcut Bea published — overridable per
+  // device by pasting a different iCloud Shortcut link in Settings → Sharing.
+  const SHORTCUT_ICLOUD_KEY = 'recipes-shortcut-icloud-url-v1';
+  const DEFAULT_ICLOUD_SHORTCUT = 'https://www.icloud.com/shortcuts/16969961688f4a2d8b0cd526b438e996';
+
   function SharingSection({ showToast }) {
     const isIOS = (() => {
       if (typeof navigator === 'undefined') return false;
@@ -4072,6 +4079,29 @@
 
     const [showKey, setShowKey] = useState(false);
     const [copied, setCopied] = useState('');
+    // iCloud Shortcut link — once the user has built the Shortcut on iOS and
+    // shared it via iCloud, they paste the link here for one-tap reinstall.
+    const [iCloudUrl, setICloudUrlState] = useState(() => {
+      try { return localStorage.getItem(SHORTCUT_ICLOUD_KEY) || DEFAULT_ICLOUD_SHORTCUT; }
+      catch { return DEFAULT_ICLOUD_SHORTCUT; }
+    });
+    const [iCloudInput, setICloudInput] = useState('');
+    const [editingICloud, setEditingICloud] = useState(false);
+    const saveICloudUrl = (url) => {
+      const trimmed = (url || '').trim();
+      if (trimmed && !/^https:\/\/(www\.)?icloud\.com\/shortcuts\//i.test(trimmed)) {
+        showToast?.('That doesn\'t look like an iCloud Shortcut link', 'error');
+        return;
+      }
+      try {
+        if (trimmed) localStorage.setItem(SHORTCUT_ICLOUD_KEY, trimmed);
+        else localStorage.removeItem(SHORTCUT_ICLOUD_KEY);
+      } catch {}
+      setICloudUrlState(trimmed);
+      setICloudInput('');
+      setEditingICloud(false);
+      showToast?.(trimmed ? 'Saved — one-tap install ready' : 'Cleared');
+    };
     const copy = async (text, label) => {
       try {
         await navigator.clipboard.writeText(text);
@@ -4101,8 +4131,105 @@
               </div>
             ) : (
               <div className="setting-row-sub" style={{lineHeight: 1.5}}>
-                <div style={{marginBottom: 6}}>
+                <div style={{marginBottom: 10}}>
                   iOS won't let HTTPS URLs launch installed PWAs, so a "share opens the app" Shortcut isn't possible. Instead, build a Shortcut that <b>posts the URL directly</b> to a queue endpoint — no browser opens, you just get a "Recipe queued" notification.
+                </div>
+
+                {/* One-tap install via iCloud link, once the user has built and shared one. */}
+                {iCloudUrl && !editingICloud ? (
+                  <div style={{
+                    background: 'var(--bg-sunk)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 10,
+                    padding: 12,
+                    marginBottom: 14,
+                  }}>
+                    <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 4}}>
+                      One-tap install
+                    </div>
+                    <div style={{fontSize: 12, color: 'var(--ink-3)', marginBottom: 10, lineHeight: 1.4}}>
+                      Tap below to install your saved Shortcut on this device. Useful when reinstalling the app or setting up a new iPad/iPhone.
+                    </div>
+                    <a
+                      href={iCloudUrl}
+                      className="primary-btn"
+                      style={{display: 'block', textAlign: 'center', textDecoration: 'none'}}
+                    >
+                      Install Shortcut from iCloud
+                    </a>
+                    <button
+                      className="ghost-btn"
+                      onClick={() => setEditingICloud(true)}
+                      style={{width: '100%', marginTop: 8, fontSize: 12}}
+                    >
+                      Change or remove saved link
+                    </button>
+                  </div>
+                ) : null}
+
+                {(!iCloudUrl || editingICloud) && (
+                  <div style={{
+                    background: 'var(--bg-sunk)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 10,
+                    padding: 12,
+                    marginBottom: 14,
+                  }}>
+                    <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 4}}>
+                      Already built the Shortcut?
+                    </div>
+                    <div style={{fontSize: 12, color: 'var(--ink-3)', marginBottom: 8, lineHeight: 1.4}}>
+                      In the Shortcuts app, tap the Shortcut → <b>ⓘ</b> → <b>Share</b> → <b>Copy iCloud Link</b>, then paste it here. After that, this section becomes a one-tap install for new devices and reinstalls.
+                    </div>
+                    <input
+                      type="url"
+                      placeholder="https://www.icloud.com/shortcuts/…"
+                      value={iCloudInput}
+                      onChange={e => setICloudInput(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        fontSize: 12,
+                        fontFamily: 'var(--font-mono)',
+                        background: 'var(--bg)',
+                        border: '1px solid var(--line)',
+                        borderRadius: 8,
+                        color: 'var(--ink)',
+                      }}
+                    />
+                    <div style={{display: 'flex', gap: 6, marginTop: 8}}>
+                      <button
+                        className="primary-btn"
+                        onClick={() => saveICloudUrl(iCloudInput)}
+                        style={{flex: 1, fontSize: 12}}
+                        disabled={!iCloudInput.trim()}
+                      >
+                        Save link
+                      </button>
+                      {iCloudUrl && (
+                        <button
+                          className="ghost-btn"
+                          onClick={() => saveICloudUrl('')}
+                          style={{fontSize: 12}}
+                        >
+                          Remove
+                        </button>
+                      )}
+                      {editingICloud && (
+                        <button
+                          className="ghost-btn"
+                          onClick={() => { setEditingICloud(false); setICloudInput(''); }}
+                          style={{fontSize: 12}}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 4}}>
+                  First time? Build the Shortcut once.
                 </div>
                 <p style={{margin: '8px 0 4px', fontWeight: 600, color: 'var(--ink-2)'}}>1. Endpoint URL</p>
                 <CodeRow text={endpointUrl} onCopy={() => copy(endpointUrl, 'url')} copied={copied === 'url'} />
@@ -4748,20 +4875,27 @@
   }
 
   // ---------- Import sheet ----------
-  function ImportSheet({ onClose, onImported, onPreviewSave, showToast, recipes, onOpenExisting, initialUrl = '' }) {
-    const [stage, setStage] = useState('paste');  // paste | detecting | preview | duplicate | error
+  function ImportSheet({ onClose, onImported, onPreviewSave, showToast, recipes, onOpenExisting, initialUrl = '', existingJobId = null }) {
+    // When existingJobId is set we're attaching to a job started elsewhere
+    // (e.g. the iOS Shortcut share flow). Skip the URL-paste step and jump
+    // straight to the polling/progress UI; the polling useEffect below
+    // handles the rest.
+    const [stage, setStage] = useState(existingJobId ? 'detecting' : 'paste');
     const [url, setUrl] = useState(initialUrl);
     const [analysis, setAnalysis] = useState('auto');
-    const [busy, setBusy] = useState(false);
+    const [busy, setBusy] = useState(!!existingJobId);
     const [err, setErr] = useState(null);
     const [preview, setPreview] = useState(null);
     const [duplicate, setDuplicate] = useState(null);
-    const [progress, setProgress] = useState('');
-    const [jobId, setJobId] = useState(null);
+    const [progress, setProgress] = useState(existingJobId ? 'Picking up your queued recipe…' : '');
+    const [jobId, setJobId] = useState(existingJobId || null);
     const inputRef = useRef(null);
     const pollRef = useRef(null);
 
-    useEffect(() => { setTimeout(() => inputRef.current?.focus(), 280); }, []);
+    // Only auto-focus the URL input when starting from the paste step.
+    useEffect(() => {
+      if (stage === 'paste') setTimeout(() => inputRef.current?.focus(), 280);
+    }, []);
 
     const trimmedUrl = url.trim();
     const platform = trimmedUrl ? detectPlatform(trimmedUrl) : null;
@@ -5172,11 +5306,19 @@
     // When the OS share sheet hands us a URL via the Web Share Target manifest
     // entry (?share=1&url=… or text=…), we open ImportSheet pre-filled.
     const [importInitialUrl, setImportInitialUrl] = useState('');
-    // Clear pre-filled URL whenever ImportSheet closes (any path) so the next
-    // manual "+ Import" tap doesn't show the previously-shared URL.
+    // When a job was queued from outside the PWA — e.g. the iOS Shortcut
+    // posted a URL to /api/share-from-shortcut while the app was closed —
+    // we attach the import sheet to that existing jobId and surface the
+    // polling/progress UI immediately on app open.
+    const [importExistingJobId, setImportExistingJobId] = useState(null);
+    // Clear pre-filled URL / attached jobId whenever ImportSheet closes
+    // (any path) so the next manual "+ Import" tap doesn't reuse them.
     useEffect(() => {
-      if (!showImport && importInitialUrl) setImportInitialUrl('');
-    }, [showImport, importInitialUrl]);
+      if (!showImport) {
+        if (importInitialUrl) setImportInitialUrl('');
+        if (importExistingJobId) setImportExistingJobId(null);
+      }
+    }, [showImport, importInitialUrl, importExistingJobId]);
     const [showFilter, setShowFilter] = useState(false);
     const [showStats, setShowStats] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
@@ -5374,6 +5516,34 @@
         setShowImport(true);
       }
     }, []);
+
+    // ---- Pending-jobs check: surface in-flight imports queued elsewhere ----
+    // When the iOS Shortcut posts a URL to /api/share-from-shortcut while the
+    // app is closed, the worker chugs away in the background. On next app
+    // open we want the user to see "yes, your recipe is being read" rather
+    // than discovering it silently 30 seconds later. We check after unlock
+    // (need a Dropbox token to query) and skip if a share target effect has
+    // already opened the import sheet.
+    useEffect(() => {
+      if (!unlocked) return;
+      if (showImport) return;  // share target took precedence
+      let cancelled = false;
+      (async () => {
+        try {
+          const { jobs } = await api.jobsPending();
+          if (cancelled) return;
+          if (Array.isArray(jobs) && jobs.length > 0) {
+            const j = jobs[0];  // newest first
+            setImportInitialUrl(j.url || '');
+            setImportExistingJobId(j.id);
+            setShowImport(true);
+          }
+        } catch {
+          // Best-effort — don't bother the user if this fails.
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [unlocked]);
 
     const openRecipe = (r) => setOpenId(r.id);
     const closeRecipe = () => setOpenId(null);
@@ -5669,7 +5839,8 @@
         {showImport && (
           <ImportSheet
             initialUrl={importInitialUrl}
-            onClose={() => { setShowImport(false); setImportInitialUrl(''); }}
+            existingJobId={importExistingJobId}
+            onClose={() => { setShowImport(false); setImportInitialUrl(''); setImportExistingJobId(null); }}
             showToast={showToast}
             recipes={recipes}
             onOpenExisting={(existing) => {

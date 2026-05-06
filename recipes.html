@@ -2064,19 +2064,31 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.05.41';
+  const APP_VERSION       = 'v2026.05.06.42';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
+  const GDR_TOKEN_KEY     = 'recipes-gdrive-token-v1';
+  const GDR_ACCOUNT_KEY   = 'recipes-gdrive-account-v1';
+  const PROVIDER_KEY      = 'recipes-provider-v1';
   const RECIPES_CACHE_KEY = 'recipes-cache-v1';
   const CHECKED_KEY       = 'recipes-checked-v1';
 
+  // ---------- Provider helpers ----------
+  function getProvider() { return localStorage.getItem(PROVIDER_KEY) || 'dropbox'; }
+  function getProviderLabel() { return getProvider() === 'gdrive' ? 'Google Drive' : 'Dropbox'; }
+
   // ---------- API client ----------
-  function getDbxToken() { return localStorage.getItem(DBX_TOKEN_KEY) || ''; }
+  function getDbxToken() {
+    const p = getProvider();
+    if (p === 'gdrive') return localStorage.getItem(GDR_TOKEN_KEY) || '';
+    return localStorage.getItem(DBX_TOKEN_KEY) || '';
+  }
 
   function apiRequest(path, opts = {}) {
     const token = getDbxToken();
     const headers = Object.assign({}, opts.headers || {}, {
       'x-dropbox-token': token,
+      'x-storage-provider': getProvider(),
     });
     if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
@@ -2086,6 +2098,9 @@
       if (r.status === 401) {
         localStorage.removeItem(DBX_TOKEN_KEY);
         localStorage.removeItem(DBX_ACCOUNT_KEY);
+        localStorage.removeItem(GDR_TOKEN_KEY);
+        localStorage.removeItem(GDR_ACCOUNT_KEY);
+        localStorage.removeItem(PROVIDER_KEY);
         window.location.reload();
         throw new Error('unauthorized');
       }
@@ -2701,36 +2716,42 @@
   }
 
   // ---------- Welcome / Connect screen ----------
-  // Replaces the old passcode gate. Each user OAuths to their own Dropbox;
-  // the refresh token gets stored in localStorage by the OAuth callback page.
+  // The chosen provider's OAuth flow stores the refresh token + provider
+  // key in localStorage via the callback page.
   function WelcomeScreen({ dataTheme = 'light' }) {
-    const connect = () => { window.location.href = '/api/oauth/start'; };
+    const connectDropbox = () => { window.location.href = '/api/oauth/start?provider=dropbox'; };
+    const connectGdrive  = () => { window.location.href = '/api/oauth/start?provider=gdrive'; };
     return (
       <div className="gate" data-theme={dataTheme}>
         <div className="gate-card">
           <div className="brand" style={{fontSize: 32, marginBottom: 4}}>My Kitchen<span className="dot">.</span></div>
-          <p style={{margin: '0 0 24px'}}>Save recipes from anywhere, synced to your own Dropbox.</p>
+          <p style={{margin: '0 0 24px'}}>Save recipes from anywhere, synced to your own cloud storage.</p>
           <div style={{textAlign: 'left', background: 'var(--bg-sunk)', borderRadius: 12, padding: '16px 18px', marginBottom: 22, border: '1px solid var(--line)'}}>
             <div style={{fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)'}}>
               <div style={{display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8}}>
                 <span style={{fontSize: 16, lineHeight: 1.2}}>🔒</span>
-                <span>Your recipes live in <b>your</b> Dropbox — only you can see them.</span>
+                <span>Your recipes live in <b>your</b> cloud — only you can see them.</span>
               </div>
               <div style={{display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8}}>
                 <span style={{fontSize: 16, lineHeight: 1.2}}>📁</span>
-                <span>The app only sees its own folder (<code style={{fontSize: 11.5}}>Apps/Recipes/</code>). Nothing else.</span>
+                <span>The app only sees its own folder (<code style={{fontSize: 11.5}}>Recipes/</code>). Nothing else.</span>
               </div>
               <div style={{display: 'flex', alignItems: 'flex-start', gap: 10}}>
                 <span style={{fontSize: 16, lineHeight: 1.2}}>↗️</span>
-                <span>Disconnect anytime from Settings or Dropbox.com.</span>
+                <span>Disconnect anytime from Settings.</span>
               </div>
             </div>
           </div>
-          <button className="primary-btn" onClick={connect} style={{width:'100%', justifyContent:'center'}}>
-            Connect Dropbox
-          </button>
+          <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+            <button className="primary-btn" onClick={connectDropbox} style={{width:'100%', justifyContent:'center'}}>
+              Connect Dropbox
+            </button>
+            <button className="primary-btn" onClick={connectGdrive} style={{width:'100%', justifyContent:'center', background: 'var(--ink-1)'}}>
+              Connect Google Drive
+            </button>
+          </div>
           <p style={{fontSize: 11.5, color: 'var(--ink-3)', marginTop: 16, marginBottom: 0}}>
-            You'll be redirected to Dropbox to authorize.
+            You'll be redirected to authorize.
           </p>
         </div>
       </div>
@@ -4326,7 +4347,7 @@
           || window.navigator.standalone === true));
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const endpointUrl = `${origin}/api/extract-video`;
-    const shareKey = typeof window !== 'undefined' ? (localStorage.getItem(DBX_TOKEN_KEY) || '') : '';
+    const shareKey = typeof window !== 'undefined' ? getDbxToken() : '';
 
     const [showKey, setShowKey] = useState(false);
     const [copied, setCopied] = useState('');
@@ -4773,7 +4794,7 @@
               </div>
             </div>
             <button className="ghost-btn" onClick={onSignOut} style={{width: '100%', marginTop: 12}}>
-              Disconnect Dropbox
+              Disconnect {getProviderLabel()}
             </button>
           </div>
 
@@ -5579,7 +5600,11 @@
     const [token, setToken] = useState(() => getDbxToken());
     const unlocked = !!token;
     const [account, setAccount] = useState(() => {
-      try { return JSON.parse(localStorage.getItem(DBX_ACCOUNT_KEY) || 'null'); } catch { return null; }
+      try {
+        const p = getProvider();
+        const key = p === 'gdrive' ? GDR_ACCOUNT_KEY : DBX_ACCOUNT_KEY;
+        return JSON.parse(localStorage.getItem(key) || 'null');
+      } catch { return null; }
     });
     const [sharePayload, setSharePayload] = useState(null);
     const [shareLoading, setShareLoading] = useState(true);
@@ -5752,7 +5777,10 @@
         try {
           const me = await api.whoami();
           setAccount(me);
-          try { localStorage.setItem(DBX_ACCOUNT_KEY, JSON.stringify(me)); } catch {}
+          try {
+            const acctKey = getProvider() === 'gdrive' ? GDR_ACCOUNT_KEY : DBX_ACCOUNT_KEY;
+            localStorage.setItem(acctKey, JSON.stringify(me));
+          } catch {}
         } catch {}
       })();
     }, [unlocked]);
@@ -5874,9 +5902,12 @@
             onCancel={() => { window.location.hash = ''; setSharePayload(null); }}
             onSaved={() => {}}
           />
-          <div style={{position: 'fixed', bottom: 24, left: 24, right: 24, maxWidth: 600, margin: '0 auto'}}>
-            <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth/start'; }} style={{width: '100%'}}>
+          <div style={{position: 'fixed', bottom: 24, left: 24, right: 24, maxWidth: 600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8}}>
+            <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth/start?provider=dropbox'; }} style={{width: '100%'}}>
               Connect Dropbox to save it
+            </button>
+            <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth/start?provider=gdrive'; }} style={{width: '100%', background: 'var(--ink-1)'}}>
+              Connect Google Drive to save it
             </button>
           </div>
         </div>
@@ -5954,10 +5985,13 @@
             setDevMode={setDevMode}
             showToast={showToast}
             onSignOut={async () => {
-              if (!confirm('Disconnect Dropbox? Your recipes stay safe — you can reconnect anytime.')) return;
+              if (!confirm(`Disconnect ${getProviderLabel()}? Your recipes stay safe — you can reconnect anytime.`)) return;
               try { await api.disconnect(); } catch {}
               localStorage.removeItem(DBX_TOKEN_KEY);
               localStorage.removeItem(DBX_ACCOUNT_KEY);
+              localStorage.removeItem(GDR_TOKEN_KEY);
+              localStorage.removeItem(GDR_ACCOUNT_KEY);
+              localStorage.removeItem(PROVIDER_KEY);
               localStorage.removeItem(RECIPES_CACHE_KEY);
               window.location.reload();
             }}

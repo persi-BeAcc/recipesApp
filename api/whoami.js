@@ -1,22 +1,25 @@
 // api/whoami.js
 //
-// Returns the connected Dropbox user's display name + email so Settings
-// can show "Connected as Alice (alice@example.com)" without storing
-// account info anywhere except localStorage.
+// Returns the connected user's display name + email so Settings can show
+// "Connected as Alice (alice@example.com)". Works with both Dropbox and
+// Google Drive — reads x-storage-provider header to pick the right backend.
 //
-// Request: GET /api/whoami   (with x-dropbox-token header)
+// Request: GET /api/whoami   (with x-dropbox-token / x-storage-token header)
 
-import { getCurrentAccount, revokeRefreshToken } from '../lib/dropbox.js';
+import { getProvider, getToken, ops } from '../lib/storage.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  const token = getToken(req);
+  if (!token) return json(res, 401, { error: 'no storage token' });
+
+  const provider = getProvider(req);
+  const { getCurrentAccount, revokeToken } = ops(provider);
 
   // POST /api/whoami?action=disconnect → revoke the token server-side.
   if (req.method === 'POST' && req.query.action === 'disconnect') {
-    try { await revokeRefreshToken(dbxToken); } catch {}
+    try { await revokeToken(token); } catch {}
     return json(res, 200, { ok: true });
   }
 
@@ -25,9 +28,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const account = await getCurrentAccount(dbxToken);
+    const account = await getCurrentAccount(token);
     return json(res, 200, {
-      name:  account?.name?.display_name || '',
+      name:  account?.name?.display_name || account?.name || '',
       email: account?.email || '',
       accountId: account?.account_id || '',
     });

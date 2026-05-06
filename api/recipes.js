@@ -1,22 +1,20 @@
 // api/recipes.js
 //
 // Recipe CRUD + synchronous URL extraction. Auth is per-user: every request
-// must carry the user's Dropbox refresh token in the `x-dropbox-token` header.
+// must carry the user's storage refresh token. Provider is determined by
+// x-storage-provider header ('dropbox' | 'gdrive').
 
-import {
-  dbxApi,
-  dbxReadJson,
-  dbxWriteJson,
-  dbxDelete,
-  dbxListFolder,
-} from '../lib/dropbox.js';
+import { getProvider, getToken, ops } from '../lib/storage.js';
 import { extractFromUrl } from '../lib/recipe-extract.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  const token = getToken(req);
+  if (!token) return json(res, 401, { error: 'no storage token' });
+
+  const provider = getProvider(req);
+  const { readJson, writeJson, remove, listFolder } = ops(provider);
 
   const { method, query } = req;
   const id = (query.id || '').toString().trim();
@@ -27,8 +25,6 @@ export default async function handler(req, res) {
       const body = await readJsonBody(req);
       const url = (body && body.url || '').toString().trim();
       if (!url) return json(res, 400, { error: 'missing url' });
-      // Optional preferred-language code (ISO-639-1). Validated against an
-      // allowlist so the extractor never sees junk; falsy = no translation.
       const ALLOWED_LANGS = ['en', 'es', 'fr', 'de', 'pt', 'it', 'nl', 'ja', 'ko', 'zh'];
       const language = body && ALLOWED_LANGS.includes(body.language) ? body.language : '';
       const recipe = await extractFromUrl(url, { language });
@@ -37,18 +33,16 @@ export default async function handler(req, res) {
 
     // -------- list --------
     if (method === 'GET' && !id) {
-      const entries = await dbxListFolder(dbxToken, '');
+      const entries = await listFolder(token, '');
       const files = entries.filter(e =>
         (e['.tag'] === 'file' || e.tag === 'file') &&
         typeof e.name === 'string' &&
         e.name.toLowerCase().endsWith('.json') &&
         e.name.toLowerCase().startsWith('recipe-')
       );
-      // Cap concurrent Dropbox reads — see mapWithLimit comment.
       const recipes = await mapWithLimit(files, 8, async f => {
         try {
-          const path = f.path_lower || f.path_display || ('/' + f.name);
-          return await dbxReadJson(dbxToken, path);
+          return await readJson(token, '/' + f.name);
         } catch (err) {
           console.error('[list] failed for', f.name, ':', err && err.message);
           return null;
@@ -60,7 +54,7 @@ export default async function handler(req, res) {
     // -------- read one --------
     if (method === 'GET' && id) {
       if (!isSafeId(id)) return json(res, 400, { error: 'bad id' });
-      const recipe = await dbxReadJson(dbxToken, `/recipe-${id}.json`);
+      const recipe = await readJson(token, `/recipe-${id}.json`);
       return json(res, 200, recipe);
     }
 
@@ -78,14 +72,14 @@ export default async function handler(req, res) {
         updatedAt: now,
         createdAt: body.createdAt || now,
       };
-      await dbxWriteJson(dbxToken, `/recipe-${id}.json`, recipe);
+      await writeJson(token, `/recipe-${id}.json`, recipe);
       return json(res, 200, recipe);
     }
 
     // -------- delete --------
     if (method === 'DELETE' && id) {
       if (!isSafeId(id)) return json(res, 400, { error: 'bad id' });
-      await dbxDelete(dbxToken, `/recipe-${id}.json`);
+      await remove(token, `/recipe-${id}.json`);
       return json(res, 200, { ok: true, id });
     }
 
@@ -107,8 +101,6 @@ function isSafeId(id) {
   return /^[a-zA-Z0-9_-]{1,64}$/.test(id);
 }
 
-// Concurrency-limited map. Same shape as Promise.all(items.map(fn)), but
-// runs at most `limit` async operations in flight at any time.
 async function mapWithLimit(items, limit, fn) {
   const results = new Array(items.length);
   let cursor = 0;

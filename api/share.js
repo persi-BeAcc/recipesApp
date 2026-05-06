@@ -2,26 +2,29 @@
 //
 // Two related routes for the recipe-sharing feature:
 //
-//   POST /api/share?id=<recipeId>   (with x-dropbox-token of SHARER)
-//     → mints a public Dropbox shared link to the recipe's archived mp4
+//   POST /api/share?id=<recipeId>   (with storage token of SHARER)
+//     → mints a public shared link to the recipe's archived mp4
 //       (if videoPath is set) and returns it. The caller will encode this
 //       URL into the share-link's hash payload alongside the recipe JSON.
 //     Response: { videoUrl?: string }
 //
-//   POST /api/save-shared        (with x-dropbox-token of RECIPIENT)
+//   POST /api/save-shared        (with storage token of RECIPIENT)
 //     body: { recipe, videoUrl? }
 //     → saves the shared recipe into the recipient's library. If videoUrl
-//       was provided, downloads the mp4 from there and archives it into
-//       the recipient's own Dropbox so they get their own copy.
+//       was provided, downloads the mp4 and archives it into the
+//       recipient's storage so they get their own copy.
 //     Response: { recipe }   (with new id and videoPath)
 
-import { dbxReadJson, dbxSharedLink, dbxUpload, dbxWriteJson } from '../lib/dropbox.js';
+import { getProvider, getToken, ops } from '../lib/storage.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  const token = getToken(req);
+  if (!token) return json(res, 401, { error: 'no storage token' });
+
+  const provider = getProvider(req);
+  const { readJson, writeJson, upload, sharedLink } = ops(provider);
 
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'method not allowed' });
@@ -34,12 +37,10 @@ export default async function handler(req, res) {
       return json(res, 400, { error: 'bad id' });
     }
     try {
-      const recipe = await dbxReadJson(dbxToken, `/recipe-${recipeId}.json`);
+      const recipe = await readJson(token, `/recipe-${recipeId}.json`);
       if (!recipe.videoPath) return json(res, 200, { videoUrl: null });
-      const url = await dbxSharedLink(dbxToken, recipe.videoPath);
-      // Convert preview URL to direct-download URL so a recipient's <video>
-      // tag can stream it without rendering Dropbox's preview UI.
-      // dropbox.com/s/...?dl=0 → ...?dl=1 (or replace host with dl.dropboxusercontent.com).
+      const url = await sharedLink(token, recipe.videoPath);
+      // For Dropbox: convert preview URL to direct-download URL
       const direct = (url || '').replace(/dl=0$/, 'dl=1').replace(/\?dl=0&/, '?dl=1&');
       return json(res, 200, { videoUrl: direct });
     } catch (e) {
@@ -57,21 +58,18 @@ export default async function handler(req, res) {
   const recipe = body.recipe;
   const videoUrl = (body.videoUrl || '').toString().trim();
 
-  // Brand-new id — recipient gets their own independent record.
   const id = newId();
   const now = new Date().toISOString();
 
   let videoPath = null;
   if (videoUrl && /^https?:\/\//i.test(videoUrl)) {
     try {
-      // Pull the mp4 from the sharer's public link, write it into the
-      // recipient's Dropbox.
       const r = await fetch(videoUrl, { redirect: 'follow' });
       if (r.ok) {
         const buf = Buffer.from(await r.arrayBuffer());
         if (buf.length > 0 && buf.length < 100_000_000) {
           videoPath = `/videos/${id}.mp4`;
-          await dbxUpload(dbxToken, videoPath, buf);
+          await upload(token, videoPath, buf);
         }
       }
     } catch (e) {
@@ -95,7 +93,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    await dbxWriteJson(dbxToken, `/recipe-${id}.json`, finalRecipe);
+    await writeJson(token, `/recipe-${id}.json`, finalRecipe);
   } catch (e) {
     console.error('[save-shared] write failed:', e);
     return json(res, 500, { error: 'could not save: ' + (e.message || 'unknown') });

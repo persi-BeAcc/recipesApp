@@ -4,12 +4,12 @@
 // The actual work happens in the Inngest worker (api/inngest.js).
 //
 // Two ways to authenticate (Vercel Hobby 12-function cap forced consolidation):
-//   • x-dropbox-token: <refresh-token>   ← the PWA does this normally
-//   • Authorization: Bearer <token>      ← the iOS Shortcut share-flow does this
-// Either is forwarded into the Inngest event payload as `dbxToken`.
+//   • x-dropbox-token / x-storage-token  ← the PWA does this normally
+//   • Authorization: Bearer <token>       ← the iOS Shortcut share-flow does this
+// Token + provider are forwarded into the Inngest event payload.
 
 import { Inngest } from 'inngest';
-import { dbxWriteJson } from '../lib/dropbox.js';
+import { getProvider, getToken, ops } from '../lib/storage.js';
 
 const inngest = new Inngest({
   id: 'recipes-app',
@@ -19,15 +19,11 @@ const inngest = new Inngest({
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  // Pick up the Dropbox token from either header. PWA → x-dropbox-token,
-  // iOS Shortcut → Authorization: Bearer <token>.
-  let dbxToken = req.headers['x-dropbox-token'] || '';
-  if (!dbxToken) {
-    const auth = req.headers['authorization'] || '';
-    const m = auth.match(/^Bearer\s+(\S.*)$/i);
-    if (m) dbxToken = m[1].trim();
-  }
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  const token = getToken(req);
+  if (!token) return json(res, 401, { error: 'no storage token' });
+
+  const provider = getProvider(req);
+  const { writeJson } = ops(provider);
 
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'method not allowed' });
@@ -55,9 +51,9 @@ export default async function handler(req, res) {
 
   const frames = Array.isArray(body.frames) ? body.frames.slice(0, 6) : [];
 
-  // If the request came in via Bearer auth, tag the job as 'shortcut' so the
-  // PWA's pending-jobs surface knows to label it as queued from outside.
-  const fromShortcut = !req.headers['x-dropbox-token'] && /^bearer\s+/i.test(req.headers['authorization'] || '');
+  // If the request came in via Bearer auth, tag the job as 'shortcut'
+  const fromShortcut = !req.headers['x-dropbox-token'] && !req.headers['x-storage-token']
+    && /^bearer\s+/i.test(req.headers['authorization'] || '');
 
   const jobId  = newId();
   const now    = new Date().toISOString();
@@ -74,7 +70,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    await dbxWriteJson(dbxToken, `/jobs/job-${jobId}.json`, job);
+    await writeJson(token, `/jobs/job-${jobId}.json`, job);
   } catch (e) {
     console.error('[extract-video] could not write job record:', e);
     return json(res, 500, { error: 'could not queue job' });
@@ -83,12 +79,13 @@ export default async function handler(req, res) {
   try {
     await inngest.send({
       name: 'recipes/video.extract',
-      data: { jobId, url, analysis, language, frames, dbxToken },
+      // Include provider so the Inngest worker knows which backend to use
+      data: { jobId, url, analysis, language, frames, dbxToken: token, storageProvider: provider },
     });
   } catch (e) {
     console.error('[extract-video] inngest.send failed:', e);
     try {
-      await dbxWriteJson(dbxToken, `/jobs/job-${jobId}.json`, {
+      await writeJson(token, `/jobs/job-${jobId}.json`, {
         ...job,
         status: 'error',
         error: 'Could not dispatch worker job: ' + (e.message || 'unknown'),
@@ -98,7 +95,7 @@ export default async function handler(req, res) {
     return json(res, 500, { error: 'could not dispatch job', jobId });
   }
 
-  // 202 Accepted — both flows expect this.
+  // 202 Accepted
   return json(res, 202, { jobId, ok: true });
 }
 

@@ -10,17 +10,21 @@
 //     body: { image: "data:image/jpeg;base64,...", mimeType: "image/jpeg" }
 //     → snap of a written/printed shopping list, Claude vision OCRs it
 //
-// Server reads existing list from Dropbox, calls Claude with both, applies
+// Server reads existing list from storage, calls Claude with both, applies
 // the resulting updates (skip / merge / add), saves the new list, returns it.
 
 import { loadList, saveList } from '../shopping.js';
+import { getProvider, getToken, ops } from '../../lib/storage.js';
 import { processNewItems, processPhoto, applyUpdates } from '../../lib/shopping.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  const token = getToken(req);
+  if (!token) return json(res, 401, { error: 'no storage token' });
+
+  const provider = getProvider(req);
+  const { readJson, writeJson } = ops(provider);
 
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'method not allowed' });
@@ -33,7 +37,7 @@ export default async function handler(req, res) {
   const fromRecipe = body.fromRecipe ? String(body.fromRecipe).slice(0, 64) : null;
 
   try {
-    const current = await loadList(dbxToken);
+    const current = await loadList(token, readJson);
 
     let result;
     if (body.image) {
@@ -42,18 +46,15 @@ export default async function handler(req, res) {
       const m = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
       const imageBase64 = m ? m[2] : dataUrl;
       const mimeType    = m ? m[1] : (body.mimeType || 'image/jpeg');
-      // Cap size — Claude vision accepts up to ~5MB; reject huge uploads up front.
       if (imageBase64.length > 7_000_000) {
         return json(res, 413, { error: 'image too large (max ~5MB)' });
       }
       result = await processPhoto({ existing: current.items, imageBase64, mimeType });
     } else if (Array.isArray(body.items) && body.items.length > 0) {
-      // Typed / recipe mode — list of strings
       const newItems = body.items
         .map(s => String(s || '').trim())
-        // Drop empty lines and ingredient-section headings (— Sauce —)
         .filter(s => s && !/^—.*—$/.test(s))
-        .slice(0, 80);  // sanity cap
+        .slice(0, 80);
       if (!newItems.length) return json(res, 400, { error: 'no usable items in input' });
       result = await processNewItems({ existing: current.items, newItems });
     } else {
@@ -61,7 +62,7 @@ export default async function handler(req, res) {
     }
 
     const nextItems = applyUpdates(current.items, result.updates, { fromRecipe });
-    const saved = await saveList(dbxToken, nextItems);
+    const saved = await saveList(token, nextItems, writeJson);
     const __usage = result.usage ? [result.usage] : [];
     return json(res, 200, { ...saved, updates: result.updates, __usage });
   } catch (e) {

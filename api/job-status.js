@@ -2,24 +2,24 @@
 //
 // Two responsibilities, one function (Vercel Hobby's 12-function cap):
 //
-//   GET /api/job-status?id=<jobId>   → single job record (existing flow,
-//                                       polled while a video is extracting)
+//   GET /api/job-status?id=<jobId>   → single job record
 //   GET /api/job-status              → { jobs: [...] } in-flight jobs from
-//                                       the last 10 minutes (used by the
-//                                       PWA on boot to surface jobs queued
-//                                       elsewhere — e.g. iOS Shortcut share)
+//                                       the last 10 minutes
 //
-// Both paths require x-dropbox-token.
+// Both paths require a storage token. Supports Dropbox and Google Drive.
 
-import { dbxReadJson, dbxListFolder } from '../lib/dropbox.js';
+import { getProvider, getToken, ops } from '../lib/storage.js';
 
 const FRESH_WINDOW_MS = 10 * 60 * 1000;
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  const token = getToken(req);
+  if (!token) return json(res, 401, { error: 'no storage token' });
+
+  const provider = getProvider(req);
+  const { readJson, listFolder } = ops(provider);
 
   if (req.method !== 'GET') {
     return json(res, 405, { error: 'method not allowed' });
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       return json(res, 400, { error: 'bad id' });
     }
     try {
-      const job = await dbxReadJson(dbxToken, `/jobs/job-${rawId}.json`);
+      const job = await readJson(token, `/jobs/job-${rawId}.json`);
       return json(res, 200, job);
     } catch (e) {
       if (String(e?.message || e).includes('not_found')) {
@@ -45,11 +45,9 @@ export default async function handler(req, res) {
   }
 
   // ---- List in-flight jobs (no id) ----
-  // Walks /jobs/, reads each record in parallel (capped concurrency), keeps
-  // jobs that aren't done/error and were created in the freshness window.
   let entries = [];
   try {
-    entries = await dbxListFolder(dbxToken, '/jobs');
+    entries = await listFolder(token, '/jobs');
   } catch (e) {
     if (String(e.message || '').includes('not_found')) return json(res, 200, { jobs: [] });
     console.error('[job-status:list] list_folder failed:', e);
@@ -63,7 +61,7 @@ export default async function handler(req, res) {
 
   const results = await mapWithLimit(jobFiles, 6, async (path) => {
     try {
-      const job = await dbxReadJson(dbxToken, path);
+      const job = await readJson(token, path);
       if (!job || typeof job !== 'object') return null;
       if (job.status === 'done' || job.status === 'error') return null;
       const createdMs = job.createdAt ? Date.parse(job.createdAt) : 0;

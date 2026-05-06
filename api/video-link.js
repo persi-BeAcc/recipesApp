@@ -1,22 +1,26 @@
 // api/video-link.js
 //
-// Mints a short-lived Dropbox temporary link for an archived asset so the
+// Mints a short-lived temporary link for an archived asset so the
 // browser can render it directly. Auth is per-user.
+// Supports both Dropbox and Google Drive via x-storage-provider header.
 //
 // Request: GET /api/video-link?id=<recipeId>[&kind=thumb]
-//          (with x-dropbox-token header)
+//          (with storage token header)
 //
 // kind defaults to 'video' (returns recipe.videoPath link). 'thumb' returns
 // recipe.thumbPath link — used by the frontend to display reel thumbnails
 // without needing the Dropbox sharing.write scope.
 
-import { dbxReadJson, dbxTempLink } from '../lib/dropbox.js';
+import { getProvider, getToken, ops } from '../lib/storage.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  const token = getToken(req);
+  if (!token) return json(res, 401, { error: 'no storage token' });
+
+  const provider = getProvider(req);
+  const { readJson, tempLink } = ops(provider);
 
   if (req.method !== 'GET') {
     return json(res, 405, { error: 'method not allowed' });
@@ -33,7 +37,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const recipe = await dbxReadJson(dbxToken, `/recipe-${id}.json`);
+    const recipe = await readJson(token, `/recipe-${id}.json`);
 
     if (kind === 'thumb') {
       if (!recipe.thumbPath || typeof recipe.thumbPath !== 'string') {
@@ -42,7 +46,7 @@ export default async function handler(req, res) {
       if (!recipe.thumbPath.startsWith('/thumbnails/')) {
         return json(res, 400, { error: 'bad thumb path' });
       }
-      const link = await dbxTempLink(dbxToken, recipe.thumbPath);
+      const link = await tempLink(token, recipe.thumbPath);
       return json(res, 200, { url: link });
     }
 
@@ -52,7 +56,7 @@ export default async function handler(req, res) {
     if (!recipe.videoPath.startsWith('/videos/')) {
       return json(res, 400, { error: 'bad video path' });
     }
-    const link = await dbxTempLink(dbxToken, recipe.videoPath);
+    const link = await tempLink(token, recipe.videoPath);
     return json(res, 200, { url: link });
   } catch (e) {
     if (String(e?.message || e).includes('not_found')) {

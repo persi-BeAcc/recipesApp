@@ -29,8 +29,10 @@ const GEMINI_MODEL  = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash';
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  // Auth check — alternatives doesn't touch storage directly, but still
+  // requires the user to be connected.
+  const token = req.headers['x-dropbox-token'] || req.headers['x-storage-token'] || '';
+  if (!token) return json(res, 401, { error: 'no storage token' });
 
   if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
 

@@ -1,28 +1,28 @@
 // api/shopping.js
 //
 // CRUD on the shopping list. Single JSON file at /shopping.json in the
-// user's Dropbox.
+// user's storage (Dropbox or Google Drive).
 //
 //   GET    /api/shopping       → returns { items: [...] }
 //   PUT    /api/shopping       → body { items: [...] } → overwrites the list
-//                                (used for toggles, edits, deletes-of-one)
 //   DELETE /api/shopping       → empties the list
-//
-// Smart-add lives at /api/shopping/add (separate file, dynamic route).
 
-import { dbxReadJson, dbxWriteJson } from '../lib/dropbox.js';
+import { getProvider, getToken, ops } from '../lib/storage.js';
 
 const SHOPPING_PATH = '/shopping.json';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  const dbxToken = req.headers['x-dropbox-token'];
-  if (!dbxToken) return json(res, 401, { error: 'no Dropbox token' });
+  const token = getToken(req);
+  if (!token) return json(res, 401, { error: 'no storage token' });
+
+  const provider = getProvider(req);
+  const { readJson, writeJson } = ops(provider);
 
   try {
     if (req.method === 'GET') {
-      const list = await loadList(dbxToken);
+      const list = await loadList(token, readJson);
       return json(res, 200, list);
     }
 
@@ -36,13 +36,13 @@ export default async function handler(req, res) {
         items: body.items,
         updatedAt: new Date().toISOString(),
       };
-      await dbxWriteJson(dbxToken, SHOPPING_PATH, list);
+      await writeJson(token, SHOPPING_PATH, list);
       return json(res, 200, list);
     }
 
     if (req.method === 'DELETE') {
       const empty = { version: 1, items: [], updatedAt: new Date().toISOString() };
-      await dbxWriteJson(dbxToken, SHOPPING_PATH, empty);
+      await writeJson(token, SHOPPING_PATH, empty);
       return json(res, 200, empty);
     }
 
@@ -54,12 +54,12 @@ export default async function handler(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — exported for use by shopping/add.js
 // ---------------------------------------------------------------------------
 
-export async function loadList(dbxToken) {
+export async function loadList(token, readJsonFn) {
   try {
-    const list = await dbxReadJson(dbxToken, SHOPPING_PATH);
+    const list = await readJsonFn(token, SHOPPING_PATH);
     return {
       version: list.version || 1,
       items: Array.isArray(list.items) ? list.items : [],
@@ -73,13 +73,13 @@ export async function loadList(dbxToken) {
   }
 }
 
-export async function saveList(dbxToken, items) {
+export async function saveList(token, items, writeJsonFn) {
   const list = {
     version: 1,
     items,
     updatedAt: new Date().toISOString(),
   };
-  await dbxWriteJson(dbxToken, SHOPPING_PATH, list);
+  await writeJsonFn(token, SHOPPING_PATH, list);
   return list;
 }
 

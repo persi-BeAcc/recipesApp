@@ -1,41 +1,44 @@
 // api/oauth/[action].js
 //
-// Handles the Dropbox OAuth dance for per-user authorization.
-//   GET /api/oauth/start    → 302 redirects to Dropbox authorize page
-//   GET /api/oauth/callback → exchanges the auth code, returns a tiny HTML
-//                              page that stuffs the refresh token into
-//                              localStorage and redirects to /
+// Handles the OAuth dance for per-user authorization — supports both
+// Dropbox and Google Drive.
 //
-// Path-style URLs because Dropbox redirect URIs are matched as exact
-// strings — `/api/oauth/callback` is what you register in the Dropbox
-// app's redirect-URIs list.
+//   GET /api/oauth/start?provider=dropbox  → 302 to Dropbox authorize
+//   GET /api/oauth/start?provider=gdrive   → 302 to Google authorize
+//   GET /api/oauth/callback                → exchanges the auth code,
+//                                             returns a tiny HTML page that
+//                                             stores the refresh token +
+//                                             provider in localStorage and
+//                                             redirects to /
+//
+// The `provider` is embedded in the OAuth `state` param so the callback
+// knows which provider initiated the flow without needing a separate route.
 //
 // Stateless: refresh tokens live in the user's browser. Server's only role
 // is the code-for-token exchange (which requires the app secret).
 
-import {
-  buildAuthorizeUrl,
-  exchangeAuthCode,
-  getCurrentAccount,
-} from '../../lib/dropbox.js';
+import { ops } from '../../lib/storage.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  // Vercel's file-based dynamic route puts the path segment in req.query.action.
   const action = (req.query.action || '').toString();
 
-  // Build the redirect URI from the request's host so production AND preview
-  // deployments work without code changes — both must be added to Dropbox's
-  // allowed redirect URIs.
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const host  = req.headers['x-forwarded-host']  || req.headers.host;
   const redirectUri = `${proto}://${host}/api/oauth/callback`;
 
   if (action === 'start') {
-    // Lightweight CSRF defense: random state, stored as a cookie, verified
-    // on callback.
-    const state = randomString();
+    const provider = (req.query.provider || 'dropbox').toString().toLowerCase();
+    if (provider !== 'dropbox' && provider !== 'gdrive') {
+      return htmlError(res, 'Unknown storage provider.');
+    }
+
+    // Embed provider in the state so callback knows which flow to finish.
+    const nonce = randomString();
+    const state = `${provider}:${nonce}`;
     res.setHeader('Set-Cookie', `oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`);
+
+    const { buildAuthorizeUrl } = ops(provider);
     res.writeHead(302, { Location: buildAuthorizeUrl(redirectUri, state) });
     return res.end();
   }
@@ -45,8 +48,12 @@ export default async function handler(req, res) {
     const returnedState = (req.query.state || '').toString();
     const cookieState = parseCookie(req.headers.cookie || '', 'oauth_state');
 
+    // Determine provider from state (format: "provider:nonce")
+    const provider = returnedState.split(':')[0] === 'gdrive' ? 'gdrive' : 'dropbox';
+    const providerLabel = provider === 'gdrive' ? 'Google Drive' : 'Dropbox';
+
     if (req.query.error) {
-      return htmlError(res, 'Dropbox authorization was cancelled or denied.');
+      return htmlError(res, `${providerLabel} authorization was cancelled or denied.`);
     }
     if (!code) {
       return htmlError(res, 'Missing authorization code.');
@@ -55,25 +62,30 @@ export default async function handler(req, res) {
       return htmlError(res, 'OAuth state mismatch — please try connecting again.');
     }
 
+    const { exchangeAuthCode, getCurrentAccount } = ops(provider);
+
     let tokenResp;
     try {
       tokenResp = await exchangeAuthCode(code, redirectUri);
     } catch (e) {
       console.error('[oauth callback] exchange failed:', e);
-      return htmlError(res, 'Could not complete Dropbox authorization: ' + e.message);
+      return htmlError(res, `Could not complete ${providerLabel} authorization: ${e.message}`);
     }
 
     let account = null;
     try { account = await getCurrentAccount(tokenResp.refresh_token); } catch {}
 
     const accountInfo = account
-      ? { name: account.name?.display_name || '', email: account.email || '' }
+      ? {
+          name: account.name?.display_name || account.name || '',
+          email: account.email || '',
+        }
       : { name: '', email: '' };
 
     res.setHeader('Set-Cookie', 'oauth_state=; Path=/; Max-Age=0');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.status(200);
-    res.end(connectedPage(tokenResp.refresh_token, accountInfo));
+    res.end(connectedPage(tokenResp.refresh_token, accountInfo, provider));
     return;
   }
 
@@ -86,11 +98,18 @@ export default async function handler(req, res) {
 // HTML templates
 // ---------------------------------------------------------------------------
 
-function connectedPage(refreshToken, account) {
+function connectedPage(refreshToken, account, provider) {
   const safeName  = htmlEscape(account.name || '');
   const safeEmail = htmlEscape(account.email || '');
+  const providerLabel = provider === 'gdrive' ? 'Google Drive' : 'Dropbox';
   const tokenJson    = JSON.stringify(refreshToken);
   const accountJson  = JSON.stringify({ name: account.name || '', email: account.email || '' });
+  const providerJson = JSON.stringify(provider);
+
+  // Token key varies by provider
+  const tokenKey   = provider === 'gdrive' ? 'recipes-gdrive-token-v1' : 'recipes-dropbox-token-v1';
+  const accountKey = provider === 'gdrive' ? 'recipes-gdrive-account-v1' : 'recipes-dropbox-account-v1';
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -110,13 +129,19 @@ function connectedPage(refreshToken, account) {
   <div class="card">
     <div class="check">✓</div>
     <h1>Connected!</h1>
-    <p>Your Dropbox is linked${safeName ? ` as <span class="who">${safeName}</span>` : ''}${safeEmail ? `<br/><span style="font-size:12px;opacity:0.7">${safeEmail}</span>` : ''}</p>
+    <p>Your ${htmlEscape(providerLabel)} is linked${safeName ? ` as <span class="who">${safeName}</span>` : ''}${safeEmail ? `<br/><span style="font-size:12px;opacity:0.7">${safeEmail}</span>` : ''}</p>
     <p style="font-size:13px">Taking you back to the app…</p>
   </div>
   <script>
     try {
-      localStorage.setItem('recipes-dropbox-token-v1', JSON.parse(${JSON.stringify(tokenJson)}));
-      localStorage.setItem('recipes-dropbox-account-v1', JSON.stringify(${JSON.stringify(accountJson)}));
+      // Clear any tokens from the OTHER provider — user picks one.
+      ${provider === 'gdrive'
+        ? `localStorage.removeItem('recipes-dropbox-token-v1'); localStorage.removeItem('recipes-dropbox-account-v1');`
+        : `localStorage.removeItem('recipes-gdrive-token-v1'); localStorage.removeItem('recipes-gdrive-account-v1');`
+      }
+      localStorage.setItem('${tokenKey}', JSON.parse(${JSON.stringify(tokenJson)}));
+      localStorage.setItem('${accountKey}', JSON.stringify(${JSON.stringify(accountJson)}));
+      localStorage.setItem('recipes-provider-v1', ${JSON.stringify(providerJson)});
     } catch (e) {}
     setTimeout(() => { window.location.href = '/'; }, 800);
   </script>

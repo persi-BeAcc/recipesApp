@@ -102,9 +102,13 @@ function connectedPage(refreshToken, account, provider) {
   const safeName  = htmlEscape(account.name || '');
   const safeEmail = htmlEscape(account.email || '');
   const providerLabel = provider === 'gdrive' ? 'Google Drive' : 'Dropbox';
-  const tokenJson    = JSON.stringify(refreshToken);
-  const accountJson  = JSON.stringify({ name: account.name || '', email: account.email || '' });
-  const providerJson = JSON.stringify(provider);
+
+  // JS-source-safe literals for inlining into the inline <script>. Each
+  // is the result of one JSON.stringify on the desired stored value, so
+  // the inlined source reads as `setItem(key, "stored value")`.
+  const tokenLit    = JSON.stringify(refreshToken);
+  const accountLit  = JSON.stringify(JSON.stringify({ name: account.name || '', email: account.email || '' }));
+  const providerLit = JSON.stringify(provider);
 
   // Token key varies by provider
   const tokenKey   = provider === 'gdrive' ? 'recipes-gdrive-token-v1' : 'recipes-dropbox-token-v1';
@@ -139,9 +143,9 @@ function connectedPage(refreshToken, account, provider) {
         ? `localStorage.removeItem('recipes-dropbox-token-v1'); localStorage.removeItem('recipes-dropbox-account-v1');`
         : `localStorage.removeItem('recipes-gdrive-token-v1'); localStorage.removeItem('recipes-gdrive-account-v1');`
       }
-      localStorage.setItem('${tokenKey}', JSON.parse(${JSON.stringify(tokenJson)}));
-      localStorage.setItem('${accountKey}', JSON.stringify(${JSON.stringify(accountJson)}));
-      localStorage.setItem('recipes-provider-v1', ${JSON.stringify(providerJson)});
+      localStorage.setItem('${tokenKey}', ${tokenLit});
+      localStorage.setItem('${accountKey}', ${accountLit});
+      localStorage.setItem('recipes-provider-v1', ${providerLit});
     } catch (e) {}
     setTimeout(() => { window.location.href = '/'; }, 800);
   </script>

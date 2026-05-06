@@ -2064,7 +2064,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.06.42';
+  const APP_VERSION       = 'v2026.05.06.43';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const GDR_TOKEN_KEY     = 'recipes-gdrive-token-v1';
@@ -2746,7 +2746,7 @@
             <button className="primary-btn" onClick={connectDropbox} style={{width:'100%', justifyContent:'center'}}>
               Connect Dropbox
             </button>
-            <button className="primary-btn" onClick={connectGdrive} style={{width:'100%', justifyContent:'center', background: 'var(--ink-1)'}}>
+            <button className="primary-btn" onClick={connectGdrive} style={{width:'100%', justifyContent:'center', background: 'var(--ink)'}}>
               Connect Google Drive
             </button>
           </div>
@@ -5906,7 +5906,7 @@
             <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth/start?provider=dropbox'; }} style={{width: '100%'}}>
               Connect Dropbox to save it
             </button>
-            <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth/start?provider=gdrive'; }} style={{width: '100%', background: 'var(--ink-1)'}}>
+            <button className="primary-btn" onClick={() => { window.location.href = '/api/oauth/start?provider=gdrive'; }} style={{width: '100%', background: 'var(--ink)'}}>
               Connect Google Drive to save it
             </button>
           </div>

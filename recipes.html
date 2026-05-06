@@ -2064,7 +2064,7 @@
   <script type="text/babel" data-presets="env,react">
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  const APP_VERSION       = 'v2026.05.06.44';
+  const APP_VERSION       = 'v2026.05.06.45';
   const DBX_TOKEN_KEY     = 'recipes-dropbox-token-v1';
   const DBX_ACCOUNT_KEY   = 'recipes-dropbox-account-v1';
   const GDR_TOKEN_KEY     = 'recipes-gdrive-token-v1';
@@ -4532,7 +4532,7 @@
                   disabled={!shareKey}
                 />
                 <div style={{fontSize: 11, color: 'var(--ink-3)', marginTop: 4, lineHeight: 1.4}}>
-                  This is your Dropbox app-folder token. Anyone with it can save recipes to your library, but nothing else. Disconnecting Dropbox invalidates it; reconnect and refresh this page to get a new one.
+                  This is your {getProviderLabel()} token. Anyone with it can save recipes to your library, but nothing else. Disconnecting {getProviderLabel()} invalidates it; reconnect and refresh this page to get a new one.
                 </div>
 
                 <p style={{margin: '14px 0 4px', fontWeight: 600, color: 'var(--ink-2)'}}>3. Build the Shortcut</p>
@@ -4787,7 +4787,7 @@
             <h3 className="filter-section-title">Connection</h3>
             <div className="setting-row">
               <div style={{minWidth: 0, flex: 1}}>
-                <div className="setting-row-label">Dropbox</div>
+                <div className="setting-row-label">{getProviderLabel()}</div>
                 <div className="setting-row-sub" style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
                   {account ? (account.name || account.email || 'Connected') : 'Connected'}
                   {account && account.email ? ` · ${account.email}` : ''}
@@ -5588,7 +5588,7 @@
             <div className="setting-row" style={{margin: '0 0 16px', padding: '12px 14px', background: 'var(--bg-sunk)', borderRadius: 10, border: '1px solid var(--line)'}}>
               <div>
                 <div className="setting-row-label">Include the video</div>
-                <div className="setting-row-sub">A copy will be saved to your Dropbox</div>
+                <div className="setting-row-sub">A copy will be saved to your {getProviderLabel()}</div>
               </div>
               <div className={'toggle ' + (withVideo ? 'on' : '')} onClick={() => setWithVideo(!withVideo)} role="button" tabIndex={0} />
             </div>
@@ -5889,7 +5889,7 @@
     };
 
     const deleteRecipe = async (id) => {
-      if (!confirm('Delete this recipe? It will also be removed from Dropbox.')) return;
+      if (!confirm(`Delete this recipe? It will also be removed from ${getProviderLabel()}.`)) return;
       try {
         await api.remove(id);
         setRecipes(rs => {
